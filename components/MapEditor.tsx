@@ -5,7 +5,7 @@ export const MapEditor: React.FC = () => {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
-    <div className="relative w-full h-[500px] bg-slate-100 rounded-xl overflow-hidden shadow-sm border border-slate-300 group">
+    <div className="relative w-full h-full bg-slate-100 overflow-hidden group">
 
       {/* Map Placeholder / Background */}
       <div
