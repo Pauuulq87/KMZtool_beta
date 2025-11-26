@@ -21,6 +21,12 @@ const App: React.FC = () => {
     correction: true,
   });
 
+  const [missionArea, setMissionArea] = useState<any>(null);
+
+  const handleAreaChange = (geoJson: any) => {
+    setMissionArea(geoJson);
+  };
+
   return (
     <Layout
       sidebar={
@@ -36,7 +42,7 @@ const App: React.FC = () => {
         />
       }
     >
-      <MapEditor />
+      <MapEditor onAreaChange={handleAreaChange} />
     </Layout>
   );
 };
