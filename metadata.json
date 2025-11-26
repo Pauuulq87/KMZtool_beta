@@ -1,0 +1,7 @@
+{
+  "name": "WaypointMap Pro",
+  "description": "Next-generation drone waypoint mission planner with AI-assisted configuration.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
