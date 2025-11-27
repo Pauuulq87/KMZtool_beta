@@ -12,10 +12,11 @@
     - [x] 設計 `Users`, `Missions`, `Waypoints` 資料庫結構 (Schema) <!-- id: 6 -->
     - [x] 設定 ORM (Prisma/TypeORM) 並執行初始遷移 (Migration) <!-- id: 7 -->
 
-- [ ] **認證系統** <!-- id: 8 -->
-    - [ ] 實作 `POST /api/auth/register` (註冊) <!-- id: 9 -->
-    - [ ] 實作 `POST /api/auth/login` (登入/JWT) <!-- id: 10 -->
-    - [ ] 實作 `GET /api/auth/me` (認證中間件) <!-- id: 11 -->
+- [x] **認證系統** <!-- id: 8 -->
+    - [x] 實作 `POST /api/auth/register` (註冊) <!-- id: 9 -->
+    - [x] 實作 `POST /api/auth/login` (登入) <!-- id: 10 -->
+    - [x] 實作 JWT Middleware 保護路由 <!-- id: 11 -->
+    - [x] 實作 `GET /api/auth/me` (取得當前使用者) <!-- id: 12 -->
 
 ## 後端開發第二階段：核心功能
 
