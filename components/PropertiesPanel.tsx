@@ -6,9 +6,11 @@ interface PropertiesPanelProps {
     settings: MissionSettings;
     onSettingsChange: (settings: MissionSettings) => void;
     onGenerate?: () => void;
+    onDownload?: () => void;
+    onSaveToAccount?: () => void;
 }
 
-export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSettingsChange, onGenerate }) => {
+export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSettingsChange, onGenerate, onDownload, onSaveToAccount }) => {
     const [activeTab, setActiveTab] = useState<'simple' | 'advanced' | 'download'>('simple');
     const [presetName, setPresetName] = useState('');
     const [missionName, setMissionName] = useState('');
@@ -24,8 +26,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
                 <button
                     onClick={() => setActiveTab('simple')}
                     className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'simple'
-                            ? 'text-primary border-b-2 border-primary bg-paper'
-                            : 'text-secondary hover:text-primary hover:bg-paper/50'
+                        ? 'text-primary border-b-2 border-primary bg-paper'
+                        : 'text-secondary hover:text-primary hover:bg-paper/50'
                         }`}
                 >
                     簡易
@@ -33,8 +35,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
                 <button
                     onClick={() => setActiveTab('advanced')}
                     className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'advanced'
-                            ? 'text-primary border-b-2 border-primary bg-paper'
-                            : 'text-secondary hover:text-primary hover:bg-paper/50'
+                        ? 'text-primary border-b-2 border-primary bg-paper'
+                        : 'text-secondary hover:text-primary hover:bg-paper/50'
                         }`}
                 >
                     進階
@@ -42,8 +44,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
                 <button
                     onClick={() => setActiveTab('download')}
                     className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'download'
-                            ? 'text-primary border-b-2 border-primary bg-paper'
-                            : 'text-secondary hover:text-primary hover:bg-paper/50'
+                        ? 'text-primary border-b-2 border-primary bg-paper'
+                        : 'text-secondary hover:text-primary hover:bg-paper/50'
                         }`}
                 >
                     下載
@@ -354,7 +356,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
                             </div>
 
                             <div className="space-y-3">
-                                <button className="w-full py-3 bg-secondary hover:bg-primary text-white font-bold text-lg transition-colors shadow-md">
+                                <button
+                                    onClick={onDownload}
+                                    className="w-full py-3 bg-secondary hover:bg-primary text-white font-bold text-lg transition-colors shadow-md"
+                                >
                                     下載 KMZ
                                 </button>
                                 <button className="w-full py-3 bg-secondary/90 hover:bg-secondary text-white font-bold text-sm transition-colors shadow-md flex flex-col items-center justify-center gap-0.5">

@@ -282,4 +282,11 @@ src/
 3. Next.js + Mapbox 的最小可執行專案骨架
 4. 專門給 Cursor / VS Code 使用的一鍵貼上範例檔案
 
+---
 
+## 12. 開發作業補充
+
+1. Context Reset：作業前後執行 `npm run ctx:reset`（呼叫 `scripts/reset-context.sh`）清理 `.cache`、`tmp/context` 並刷新 `logs`，避免舊索引干擾。  
+2. 檔案邊界：`user/` 為私人區，請勿讀寫或納入版控，需引用時複製到 `user/external/` 並標註清理。  
+3. 測試規劃：前端採 Vitest + @testing-library/react，測試檔命名 `*.test.ts(x)`；指令 `npm test`（單次）、`npm run test:watch`（開發）；提交前盡量覆蓋關鍵邏輯與錯誤流程。  
+4. 提交規範：Commit 訊息採繁體中文 Conventional Commits，PR 需附測試結果與 API/UI 影響說明。

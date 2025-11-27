@@ -31,7 +31,22 @@
 
 ## 前端整合
 
-- [ ] **串接前端與後端** <!-- id: 21 -->
-    - [ ] 將任務存取邏輯從本地狀態改為 API 呼叫 <!-- id: 22 -->
-    - [ ] 實作 登入/註冊 UI <!-- id: 23 -->
+- [x] **串接前端與後端** <!-- id: 21 -->
+    - [x] 將任務存取邏輯從本地狀態改為 API 呼叫 <!-- id: 22 -->
+    - [x] 實作 登入/註冊 UI <!-- id: 23 -->
 
+## 新任務：工具與測試
+
+- [已完成] **建立 Context Reset 機制** <!-- id: 24 -->
+    - [已完成] 補上 `scripts/reset-context.sh` 與 `npm run ctx:reset` <!-- id: 25 -->
+- [已完成] **前端測試框架初始設定** <!-- id: 26 -->
+    - [已完成] 選定並安裝測試工具（建議 Vitest + Testing Library） <!-- id: 27 -->
+    - [已完成] 建立至少一個範例測試（元件或工具） <!-- id: 28 -->
+- [待處理] **前端測試覆蓋** <!-- id: 29 -->
+    - [待處理] utils：`flightPathUtils` 覆蓋 KMZ/KML 產生與 spacing 邏輯（邊界、錯誤流程） <!-- id: 30 -->
+    - [待處理] components：核心 UI（如 `PropertiesPanel`、`MapEditor` 交互邏輯）快照與互動測試 <!-- id: 31 -->
+    - [待處理] services：`authService` / `missionService` API 呼叫 mock 測試與錯誤處理 <!-- id: 32 -->
+- [待處理] **後端測試規劃** <!-- id: 33 -->
+    - [待處理] Auth API：註冊/登入/權杖驗證流程的整合測試（含錯誤碼） <!-- id: 34 -->
+    - [待處理] Missions API：CRUD 與權限驗證的整合測試，含邊界輸入 <!-- id: 35 -->
+    - [待處理] Prisma：Schema 變更後的 migration 驗證與資料庫初始化測試（可用測試 DB） <!-- id: 36 -->
