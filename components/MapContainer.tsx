@@ -125,14 +125,23 @@ const TopBar = () => {
     );
 };
 
-const InstructionOverlay = ({ visible }: { visible: boolean }) => {
+const InstructionOverlay = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
     if (!visible) return null;
     return (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-sm px-8 py-6 shadow-xl text-center z-10 border border-primary/10 max-w-md pointer-events-none">
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-sm px-8 py-6 shadow-xl text-center z-10 border border-primary/10 max-w-md pointer-events-auto">
+            <div className="flex justify-end">
+                <button
+                    onClick={onClose}
+                    className="text-secondary hover:text-primary text-sm px-2 py-1"
+                    aria-label="關閉提示"
+                >
+                    ×
+                </button>
+            </div>
             <h3 className="text-xl font-serif font-bold text-primary mb-2">開始繪製區域</h3>
             <p className="text-base text-secondary">
                 請使用多邊形、矩形或興趣點工具。<br />
-                繪製完成後請點擊 <span className="font-bold text-primary">產生任務</span>。
+                繪製完成後請點擊 <span className="font-bold text-primary">產生路徑</span>。
             </p>
         </div>
     );
@@ -275,6 +284,14 @@ const MapManager = ({ activeTool, onAreaChange, waypoints, initialArea, initialP
             if (poiSequence.current.polyline) {
                 poiSequence.current.polyline.setMap(null);
                 poiSequence.current.polyline = null;
+            }
+
+            // Clear generated waypoint visuals
+            waypointMarkers.current.forEach(m => m.setMap(null));
+            waypointMarkers.current = [];
+            if (waypointPolyline.current) {
+                waypointPolyline.current.setMap(null);
+                waypointPolyline.current = null;
             }
 
             // Clear Overlay
@@ -922,6 +939,8 @@ export const MapContainer: React.FC<MapContainerProps> = ({ activeTool, onAreaCh
     const handleAreaChange = useCallback((geoJson: any) => {
         if (geoJson) {
             setShowInstruction(false);
+        } else {
+            setShowInstruction(true);
         }
         if (onAreaChange) {
             onAreaChange(geoJson);
@@ -933,7 +952,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({ activeTool, onAreaCh
             <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
                 <MapControlProvider>
                     <TopBar />
-                    <InstructionOverlay visible={showInstruction} />
+                    <InstructionOverlay visible={showInstruction} onClose={() => setShowInstruction(false)} />
                     <Map
                         defaultCenter={{ lat: 25.0, lng: 121.5 }}
                         defaultZoom={14}

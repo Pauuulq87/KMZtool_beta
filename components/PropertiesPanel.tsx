@@ -6,12 +6,13 @@ interface PropertiesPanelProps {
     settings: MissionSettings;
     onSettingsChange: (settings: MissionSettings) => void;
     onGenerate?: () => void;
-    onDownload?: () => void;
-    onSaveToAccount?: () => void;
+    onDownload?: (missionName?: string) => void;
+    onSaveToAccount?: (missionName?: string) => void;
+    onDownloadInstaller?: () => void;
 }
 
-export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSettingsChange, onGenerate, onDownload, onSaveToAccount }) => {
-    const [activeTab, setActiveTab] = useState<'simple' | 'advanced' | 'download'>('simple');
+export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSettingsChange, onGenerate, onDownload, onSaveToAccount, onDownloadInstaller }) => {
+    const [activeTab, setActiveTab] = useState<'params' | 'download'>('params');
     const [presetName, setPresetName] = useState('');
     const [missionName, setMissionName] = useState('');
 
@@ -19,27 +20,46 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
         onSettingsChange({ ...settings, [key]: value });
     };
 
+    // 儲存進階設定為瀏覽器端預設值
+    const handleSavePreset = () => {
+        const name = presetName.trim();
+        if (!name) {
+            alert('請輸入預設名稱');
+            return;
+        }
+        const existing = localStorage.getItem('missionPresets');
+        const list = existing ? JSON.parse(existing) : [];
+        const next = [...list.filter((item: any) => item?.name !== name), { name, settings }];
+        localStorage.setItem('missionPresets', JSON.stringify(next));
+        alert(`已儲存預設：「${name}」`);
+    };
+
+    // 下載按鈕：帶入使用者輸入的任務名稱
+    const handleDownload = () => {
+        onDownload?.(missionName.trim() || undefined);
+    };
+
+    // 儲存至帳號：帶入任務名稱並呼叫外層邏輯
+    const handleSaveToAccount = () => {
+        if (!missionName.trim()) {
+            alert('請先輸入任務名稱');
+            return;
+        }
+        onSaveToAccount?.(missionName.trim());
+    };
+
     return (
         <div className="h-full w-[600px] bg-white border-l border-primary/10 flex flex-col font-sans text-primary transition-all duration-300">
             {/* Tabs */}
             <div className="flex border-b border-primary/10">
                 <button
-                    onClick={() => setActiveTab('simple')}
-                    className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'simple'
+                    onClick={() => setActiveTab('params')}
+                    className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'params'
                         ? 'text-primary border-b-2 border-primary bg-paper'
                         : 'text-secondary hover:text-primary hover:bg-paper/50'
                         }`}
                 >
-                    簡易
-                </button>
-                <button
-                    onClick={() => setActiveTab('advanced')}
-                    className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'advanced'
-                        ? 'text-primary border-b-2 border-primary bg-paper'
-                        : 'text-secondary hover:text-primary hover:bg-paper/50'
-                        }`}
-                >
-                    進階
+                    參數
                 </button>
                 <button
                     onClick={() => setActiveTab('download')}
@@ -54,10 +74,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6">
-                {activeTab === 'simple' && (
+                {activeTab === 'params' && (
                     <div className="space-y-8 max-w-2xl mx-auto">
                         <div className="bg-paper p-6 border border-primary/10">
-                            <h3 className="text-base font-serif font-bold text-primary mb-6">品質設定</h3>
+                            <h3 className="text-base font-serif font-bold text-primary mb-6">品質與路徑</h3>
                             <div className="mb-2 flex justify-between items-end">
                                 <label className="text-sm font-medium text-secondary">重疊率</label>
                                 <span className="text-2xl font-bold text-secondary">{settings.overlap}%</span>
@@ -74,28 +94,33 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
                                 <span>快速 (低重疊)</span>
                                 <span>高品質 (高重疊)</span>
                             </div>
+
+                            <div className="mt-6 mb-2 flex justify-between items-end">
+                                <label className="text-sm font-medium text-secondary">旋轉路徑</label>
+                                <span className="text-2xl font-bold text-secondary">{settings.rotationAngle}°</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0"
+                                max="360"
+                                value={settings.rotationAngle}
+                                onChange={(e) => updateSetting('rotationAngle', Number(e.target.value))}
+                                className="w-full h-2 bg-primary/20 appearance-none cursor-pointer accent-primary mb-2"
+                            />
+                            <div className="flex justify-between text-xs text-secondary font-medium">
+                                <span>0° 直向（左）</span>
+                                <span>360° 完整旋轉</span>
+                            </div>
                         </div>
 
                         <div className="bg-secondary/10 p-4 border border-secondary/20 text-sm text-secondary flex gap-3 items-start">
                             <HelpCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
                             <p className="leading-relaxed">
-                                移動滑桿將自動更新重疊率並重新計算間距/速度。
-                                <br />
-                                雲台角度保持不變 (建議 -45°)。
+                                重疊率影響間距，旋轉角度 0°~360° 可微調掃描方向；調整後點「產生路徑」重新套用。
                             </p>
                         </div>
 
-                        <button
-                            onClick={onGenerate}
-                            className="w-full py-4 bg-secondary hover:bg-primary text-white font-bold text-lg transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                        >
-                            產生任務
-                        </button>
-                    </div>
-                )}
-
-                {activeTab === 'advanced' && (
-                    <div className="space-y-8">
+                        <div className="space-y-8">
 
                         {/* Section 1: Flight Parameters */}
                         <section className="space-y-4">
@@ -309,7 +334,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
                                     onChange={(e) => setPresetName(e.target.value)}
                                     className="flex-1 p-2.5 bg-paper border border-primary/20 text-primary focus:outline-none focus:ring-1 focus:ring-primary"
                                 />
-                                <button className="px-6 py-2.5 bg-white border border-primary/20 text-primary hover:bg-paper font-medium shadow-sm transition-colors">
+                                <button
+                                    onClick={handleSavePreset}
+                                    className="px-6 py-2.5 bg-white border border-primary/20 text-primary hover:bg-paper font-medium shadow-sm transition-colors"
+                                >
                                     儲存
                                 </button>
                             </div>
@@ -318,6 +346,14 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
                             </p>
                         </div>
 
+                        </div>
+
+                        <button
+                            onClick={onGenerate}
+                            className="w-full py-4 bg-secondary hover:bg-primary text-white font-bold text-lg transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                        >
+                            產生路徑
+                        </button>
                     </div>
                 )}
 
@@ -357,12 +393,15 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
 
                             <div className="space-y-3">
                                 <button
-                                    onClick={onDownload}
+                                    onClick={handleDownload}
                                     className="w-full py-3 bg-secondary hover:bg-primary text-white font-bold text-lg transition-colors shadow-md"
                                 >
                                     下載 KMZ
                                 </button>
-                                <button className="w-full py-3 bg-secondary/90 hover:bg-secondary text-white font-bold text-sm transition-colors shadow-md flex flex-col items-center justify-center gap-0.5">
+                                <button
+                                    onClick={onDownloadInstaller}
+                                    className="w-full py-3 bg-secondary/90 hover:bg-secondary text-white font-bold text-sm transition-colors shadow-md flex flex-col items-center justify-center gap-0.5"
+                                >
                                     <span>下載 KMZ 自動安裝程式 V2 (Windows)</span>
                                     <span className="font-normal text-xs opacity-90">(正在解決防毒軟體誤報問題)</span>
                                 </button>
@@ -383,7 +422,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
                                     onChange={(e) => setMissionName(e.target.value)}
                                     className="flex-1 p-3 bg-white border border-primary/20 text-primary focus:outline-none focus:ring-1 focus:ring-primary"
                                 />
-                                <button className="px-8 py-3 bg-secondary hover:bg-primary text-white font-bold shadow-md transition-colors">
+                                <button
+                                    onClick={handleSaveToAccount}
+                                    className="px-8 py-3 bg-secondary hover:bg-primary text-white font-bold shadow-md transition-colors"
+                                >
                                     儲存
                                 </button>
                             </div>

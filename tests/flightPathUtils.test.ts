@@ -10,6 +10,7 @@ const baseSettings: MissionSettings = {
   pathDistance: 20,
   orientation: '南北向',
   overlap: 80,
+  rotationAngle: 0,
   useActions: false,
   reversePoints: false,
   straightenPaths: true,

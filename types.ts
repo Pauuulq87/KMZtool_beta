@@ -5,6 +5,7 @@ export interface MissionSettings {
   pathDistance: number;
   orientation: string;
   overlap: number;
+  rotationAngle: number;
   useActions: boolean;
   reversePoints: boolean;
   straightenPaths: boolean;

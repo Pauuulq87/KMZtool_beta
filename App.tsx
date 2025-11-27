@@ -12,6 +12,27 @@ import { missionService } from './services/missionService';
 import { MissionModal } from './components/MissionModal';
 
 const App: React.FC = () => {
+  // 工具：統一檔案下載流程
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // 工具：將航點依指定大小分段，供分割下載使用
+  const chunkWaypoints = <T,>(items: T[], size: number): T[][] => {
+    const chunks: T[][] = [];
+    for (let i = 0; i < items.length; i += size) {
+      chunks.push(items.slice(i, i + size));
+    }
+    return chunks;
+  };
+
   // State
   const [activeTool, setActiveTool] = useState('select');
   const [settings, setSettings] = useState<MissionSettings>({
@@ -21,6 +42,7 @@ const App: React.FC = () => {
     pathDistance: 20,
     orientation: '南北向',
     overlap: 80,
+    rotationAngle: 0,
     useActions: false,
     reversePoints: false,
     straightenPaths: true,
@@ -61,7 +83,14 @@ const App: React.FC = () => {
   }, []);
 
   const handleAreaChange = (geoJson: any) => {
-    if (!geoJson) return;
+    if (!geoJson) {
+      setMissionArea(null);
+      setMissionPOIs([]);
+      setGeneratedWaypoints([]);
+      setLoadedMissionArea(null);
+      setLoadedPOIs([]);
+      return;
+    }
 
     // Distinguish between Area (Polygon/Rectangle) and POIs (Point/FeatureCollection)
     if (geoJson.type === 'FeatureCollection') {
@@ -109,7 +138,8 @@ const App: React.FC = () => {
 
       // Dynamic import to avoid circular dependency issues if any, or just standard import
       import('./utils/flightPathUtils').then(({ generateRectanglePath }) => {
-        const waypoints = generateRectanglePath(bounds, settings);
+        const polygonCoords = missionArea.geometry.coordinates?.[0];
+        const waypoints = generateRectanglePath(bounds, settings, polygonCoords);
         setGeneratedWaypoints(waypoints);
         console.log('Generated waypoints:', waypoints);
       });
@@ -120,25 +150,32 @@ const App: React.FC = () => {
     }
   };
 
-  const handleDownloadKMZ = async () => {
+  const handleDownloadKMZ = async (customName?: string) => {
     if (generatedWaypoints.length === 0) {
-      alert('請先產生任務路徑');
+      alert('請先產生路徑');
       return;
     }
 
     const { generateKML } = await import('./utils/flightPathUtils');
-    const kmlContent = generateKML(generatedWaypoints, 'Mission');
+    const missionName = (customName || 'mission').trim();
+    const mimeType = 'application/vnd.google-earth.kml+xml';
+    const chunkSize = 200;
 
-    // Create blob and download
-    const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'mission.kml'; // Saving as KML for now as it's text-based. KMZ requires zipping.
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    if (settings.splitMission && generatedWaypoints.length > chunkSize) {
+      const segments = chunkWaypoints(generatedWaypoints, chunkSize);
+      segments.forEach((segment, index) => {
+        const kmlContent = generateKML(segment, `${missionName}-part-${index + 1}`, {
+          onCompletion: settings.onCompletion,
+          segmentIndex: index + 1,
+          totalSegments: segments.length,
+        });
+        downloadBlob(new Blob([kmlContent], { type: mimeType }), `${missionName}-part-${index + 1}.kml`);
+      });
+      alert(`已分割為 ${segments.length} 個檔案並開始下載`);
+    } else {
+      const kmlContent = generateKML(generatedWaypoints, missionName, { onCompletion: settings.onCompletion });
+      downloadBlob(new Blob([kmlContent], { type: mimeType }), `${missionName}.kml`);
+    }
   };
 
   const handleLoginSuccess = (user: User) => {
@@ -152,13 +189,13 @@ const App: React.FC = () => {
     setCurrentMissionId(null);
   };
 
-  const handleSaveMission = async () => {
+  const handleSaveMission = async (providedName?: string) => {
     if (!user) {
       setIsAuthModalOpen(true);
       return;
     }
 
-    const missionName = prompt('請輸入任務名稱', '未命名任務');
+    const missionName = (providedName || prompt('請輸入任務名稱', '未命名任務') || '').trim();
     if (!missionName) return;
 
     try {
@@ -187,7 +224,10 @@ const App: React.FC = () => {
   const handleLoadMission = async (missionId: string) => {
     try {
       const mission = await missionService.getById(missionId);
-      setSettings(mission.settings);
+      setSettings({
+        rotationAngle: 0,
+        ...mission.settings,
+      });
       setCurrentMissionId(mission.id);
       if (mission.waypoints) {
         setGeneratedWaypoints(mission.waypoints);
@@ -209,6 +249,20 @@ const App: React.FC = () => {
       console.error('Load mission failed:', error);
       alert('載入失敗');
     }
+  };
+
+  // 下載自動安裝程式占位檔：提供操作指引
+  const handleDownloadInstaller = () => {
+    const instructions = [
+      'KMZ 自動安裝程式 V2 (指引占位檔)',
+      '目前安裝程式仍在處理防毒誤報，請改用以下方式：',
+      '1. 下載 mission.kml 後以 OpenMTP 將檔案放入裝置。',
+      '2. 如需自動化腳本，可聯繫專案維護者取得測試版。',
+      `產生時間：${new Date().toISOString()}`,
+    ].join('\n');
+
+    downloadBlob(new Blob([instructions], { type: 'text/plain' }), 'KMZ-installer-guide.txt');
+    alert('已提供暫時指引檔，正式安裝程式完成後可直接更新下載連結。');
   };
 
   return (
@@ -240,6 +294,7 @@ const App: React.FC = () => {
             onGenerate={handleGenerateMission}
             onDownload={handleDownloadKMZ}
             onSaveToAccount={handleSaveMission}
+            onDownloadInstaller={handleDownloadInstaller}
           />
         }
       >
