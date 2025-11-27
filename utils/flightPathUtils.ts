@@ -64,6 +64,39 @@ const getCenter = (coords: Point[]): Point => {
 };
 
 /**
+ * 取得可用的路徑間距上限（公尺），以最窄邊界為限制並考慮旋轉角度。
+ */
+export const getAvailableSpacingMeters = (
+    polygonCoords: PolygonCoords | undefined,
+    rotationAngle: number,
+    orientation: string,
+): number | null => {
+    if (!polygonCoords || polygonCoords.length === 0) return null;
+
+    const polygonPoints: Point[] = polygonCoords.map(([lng, lat]) => ({ lat, lng }));
+    const center = getCenter(polygonPoints);
+    const rotatedPolygon = polygonPoints.map(p => rotatePoint(p, -rotationAngle, center));
+
+    const rotatedBounds = rotatedPolygon.reduce(
+        (acc, p) => ({
+            north: Math.max(acc.north, p.lat),
+            south: Math.min(acc.south, p.lat),
+            east: Math.max(acc.east, p.lng),
+            west: Math.min(acc.west, p.lng),
+        }),
+        { north: -90, south: 90, east: -180, west: 180 }
+    );
+
+    const centerLat = center.lat;
+    const eastWestMeters = (rotatedBounds.east - rotatedBounds.west) * 111111 * Math.cos(centerLat * Math.PI / 180);
+    const northSouthMeters = (rotatedBounds.north - rotatedBounds.south) * 111111;
+
+    // 依掃描線方向取對應寬度，確保起始線貼邊且間距上限符合該方向跨度
+    const meters = orientation === '南北向' ? eastWestMeters : northSouthMeters;
+    return Math.max(0, Math.abs(meters));
+};
+
+/**
  * Generates a lawnmower scan pattern within a bounding box, optionally clipped by polygon and rotated by angle.
  * @param bounds The bounding box of the area (NorthEast and SouthWest).
  * @param settings Mission settings (overlap, altitude, etc.).
@@ -109,14 +142,13 @@ export const generateRectanglePath = (
     const east = rotatedBounds.east;
     const west = rotatedBounds.west;
 
-    // Calculate spacing based on overlap and altitude (simplified)
-    // Assuming a standard FOV (e.g., 84 degrees) and 4:3 aspect ratio
-    // Footprint Width (W) = 2 * Altitude * tan(FOV_H / 2)
-    // Spacing = W * (1 - Overlap)
-    // For simplicity, we can use the `pathDistance` from settings if provided, or calculate it.
-    // If pathDistance is provided in settings (it is in the interface), use it.
-
-    let spacing = settings.pathDistance || 20; // Default 20m if not set
+    // 路徑間距：以使用者設定為主，同時限制不得超過最窄邊界
+    const availableSpacing = getAvailableSpacingMeters(polygonCoords, angle, settings.orientation) ?? settings.pathDistance;
+    const widthConstraint = Math.max(availableSpacing, 0.5);
+    const overlapRatio = Math.max(0, Math.min(0.95, (settings.overlap ?? 0) / 100));
+    let spacing = settings.pathDistance || (widthConstraint * (1 - overlapRatio));
+    spacing = Math.min(spacing, widthConstraint);
+    spacing = Math.max(spacing, 0.5);
 
     // Convert spacing to degrees (approximate)
     // 1 degree lat ~= 111111 meters
@@ -167,10 +199,6 @@ export const generateRectanglePath = (
             const end = Math.min(north, intersects[i + 1] ?? north);
             if (start < end) segments.push({ start, end });
         }
-        if (segments.length === 0) {
-            // 如果沒有交點，仍使用原本 bounds 範圍
-            return [{ start: south, end: north }];
-        }
         return segments;
     };
 
@@ -204,24 +232,34 @@ export const generateRectanglePath = (
             const end = Math.min(east, intersects[i + 1] ?? east);
             if (start < end) segments.push({ start, end });
         }
-        if (segments.length === 0) {
-            return [{ start: west, end: east }];
-        }
         return segments;
     };
 
     if (isNorthSouth) {
-        // Lines run North-South, so we step along Longitude (East-West)
-        let currentLng = west + lngSpacing / 2; // Start half spacing in
+        // 以使用者第一個頂點為起始線（通過該頂點），再向左右展開，確保節點 1-2 可貼在首次點擊的邊上
+        const startLng = rotatedPolygon[0]?.lng ?? west;
+        const linePositions: number[] = [startLng];
+
+        let offset = lngSpacing;
+        while (startLng - offset >= west - 1e-12) {
+            linePositions.unshift(startLng - offset);
+            offset += lngSpacing;
+        }
+        offset = lngSpacing;
+        while (startLng + offset <= east + 1e-12) {
+            linePositions.push(startLng + offset);
+            offset += lngSpacing;
+        }
+
         let direction = 1; // 1 for South-to-North, -1 for North-to-South
         let seq = 1;
 
-        while (currentLng < east) {
-            const segments = clipVertical(currentLng);
+        linePositions.forEach((lngPos) => {
+            const segments = clipVertical(lngPos);
 
             segments.forEach(({ start, end }) => {
-                const p1 = { lat: start, lng: currentLng };
-                const p2 = { lat: end, lng: currentLng };
+                const p1 = { lat: start, lng: lngPos };
+                const p2 = { lat: end, lng: lngPos };
 
                 if (direction === 1) {
                     waypoints.push({ ...p1, id: `wp-${seq}`, sequence: seq++, alt: settings.altitude, speed: settings.speed });
@@ -232,21 +270,33 @@ export const generateRectanglePath = (
                 }
             });
 
-            currentLng += lngSpacing;
             direction *= -1;
-        }
+        });
     } else {
-        // Lines run East-West, so we step along Latitude (North-South)
-        let currentLat = south + latSpacing / 2;
+        // 東西向掃描：以使用者第一個頂點為起始線（通過該頂點），再向上下展開
+        const startLat = rotatedPolygon[0]?.lat ?? south;
+        const linePositions: number[] = [startLat];
+
+        let offset = latSpacing;
+        while (startLat - offset >= south - 1e-12) {
+            linePositions.unshift(startLat - offset);
+            offset += latSpacing;
+        }
+        offset = latSpacing;
+        while (startLat + offset <= north + 1e-12) {
+            linePositions.push(startLat + offset);
+            offset += latSpacing;
+        }
+
         let direction = 1; // 1 for West-to-East, -1 for East-to-West
         let seq = 1;
 
-        while (currentLat < north) {
-            const segments = clipHorizontal(currentLat);
+        linePositions.forEach((latPos) => {
+            const segments = clipHorizontal(latPos);
 
             segments.forEach(({ start, end }) => {
-                const p1 = { lat: currentLat, lng: start };
-                const p2 = { lat: currentLat, lng: end };
+                const p1 = { lat: latPos, lng: start };
+                const p2 = { lat: latPos, lng: end };
 
                 if (direction === 1) {
                     waypoints.push({ ...p1, id: `wp-${seq}`, sequence: seq++, alt: settings.altitude, speed: settings.speed });
@@ -257,9 +307,8 @@ export const generateRectanglePath = (
                 }
             });
 
-            currentLat += latSpacing;
             direction *= -1;
-        }
+        });
     }
 
     // 將座標旋回原始坐標系

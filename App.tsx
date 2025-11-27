@@ -10,6 +10,7 @@ import { authService, User } from './services/authService';
 import { missionService } from './services/missionService';
 
 import { MissionModal } from './components/MissionModal';
+import { getAvailableSpacingMeters } from './utils/flightPathUtils';
 
 const App: React.FC = () => {
   // 工具：統一檔案下載流程
@@ -65,6 +66,7 @@ const App: React.FC = () => {
   const [generatedWaypoints, setGeneratedWaypoints] = useState<any[]>([]);
   const [loadedMissionArea, setLoadedMissionArea] = useState<any>(null);
   const [loadedPOIs, setLoadedPOIs] = useState<any[]>([]);
+  const [availableSpacingMeters, setAvailableSpacingMeters] = useState<number | null>(null);
 
   // Check auth on mount
   useEffect(() => {
@@ -89,6 +91,7 @@ const App: React.FC = () => {
       setGeneratedWaypoints([]);
       setLoadedMissionArea(null);
       setLoadedPOIs([]);
+      setAvailableSpacingMeters(null);
       return;
     }
 
@@ -98,6 +101,9 @@ const App: React.FC = () => {
       setMissionPOIs(geoJson.features);
     } else if (geoJson.geometry && (geoJson.geometry.type === 'Polygon' || geoJson.geometry.type === 'MultiPolygon')) {
       setMissionArea(geoJson);
+      const coords = geoJson.geometry.coordinates?.[0];
+      const spacing = getAvailableSpacingMeters(coords, settings.rotationAngle, settings.orientation);
+      setAvailableSpacingMeters(spacing);
     } else if (geoJson.geometry && geoJson.geometry.type === 'Point') {
       // Single POI? MapManager emits FeatureCollection for POIs usually, but let's handle single point if needed
       // For now assume MapManager handles the collection logic for POIs
@@ -106,6 +112,53 @@ const App: React.FC = () => {
         setMissionArea(geoJson);
       }
     }
+  };
+
+  // 依照可用寬度自動收斂重疊率與間距
+  useEffect(() => {
+    if (!missionArea || !missionArea.geometry) return;
+    const coords = missionArea.geometry.coordinates?.[0];
+    const spacing = getAvailableSpacingMeters(coords, settings.rotationAngle, settings.orientation);
+    setAvailableSpacingMeters(spacing);
+  }, [missionArea, settings.rotationAngle, settings.orientation]);
+
+  // 可用寬度更新時，強制收斂間距與重疊率
+  useEffect(() => {
+    if (!availableSpacingMeters || availableSpacingMeters <= 0) return;
+    setSettings((prev) => {
+      const width = availableSpacingMeters;
+      const clampedSpacing = Math.min(prev.pathDistance, width);
+      const derivedOverlap = Math.max(0, Math.min(95, Math.round((1 - clampedSpacing / width) * 100)));
+
+      if (clampedSpacing === prev.pathDistance && derivedOverlap === prev.overlap) return prev;
+      return { ...prev, pathDistance: clampedSpacing, overlap: derivedOverlap };
+    });
+  }, [availableSpacingMeters]);
+
+  // 設定調整：重疊率與間距雙向同步並尊重可用寬度
+  const handleSettingsChange = (partial: Partial<MissionSettings>) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...partial } as MissionSettings;
+
+      const width = availableSpacingMeters ?? null;
+      if (width && width > 0) {
+        if (partial.overlap !== undefined) {
+          const safeOverlap = Math.min(95, Math.max(0, Number(partial.overlap)));
+          const spacingByOverlap = Math.max(0.5, Math.min(width, parseFloat((width * (1 - safeOverlap / 100)).toFixed(2))));
+          next.overlap = safeOverlap;
+          next.pathDistance = spacingByOverlap;
+        } else if (partial.pathDistance !== undefined) {
+          const requestedSpacing = Math.max(0.5, Math.min(width, Number(partial.pathDistance)));
+          const derivedOverlap = Math.max(0, Math.min(95, Math.round((1 - requestedSpacing / width) * 100)));
+          next.pathDistance = requestedSpacing;
+          next.overlap = derivedOverlap;
+        } else {
+          next.pathDistance = Math.min(next.pathDistance, width);
+        }
+      }
+
+      return next;
+    });
   };
 
   const handleGenerateMission = () => {
@@ -149,6 +202,12 @@ const App: React.FC = () => {
       alert('目前僅支援矩形/多邊形區域產生路徑');
     }
   };
+
+  // 監聽核心參數變化即時重算路徑
+  useEffect(() => {
+    if (!missionArea) return;
+    handleGenerateMission();
+  }, [missionArea, settings.overlap, settings.pathDistance, settings.rotationAngle, settings.orientation]);
 
   const handleDownloadKMZ = async (customName?: string) => {
     if (generatedWaypoints.length === 0) {
@@ -290,11 +349,12 @@ const App: React.FC = () => {
         propertiesPanel={
           <PropertiesPanel
             settings={settings}
-            onSettingsChange={setSettings}
+            onSettingsChange={handleSettingsChange}
             onGenerate={handleGenerateMission}
             onDownload={handleDownloadKMZ}
             onSaveToAccount={handleSaveMission}
             onDownloadInstaller={handleDownloadInstaller}
+            availableSpacingMeters={availableSpacingMeters}
           />
         }
       >

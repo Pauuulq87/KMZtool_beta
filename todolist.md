@@ -46,6 +46,7 @@
     - [待處理] utils：`flightPathUtils` 覆蓋 KMZ/KML 產生與 spacing 邏輯（邊界、錯誤流程） <!-- id: 30 -->
     - [待處理] components：核心 UI（如 `PropertiesPanel`、`MapEditor` 交互邏輯）快照與互動測試 <!-- id: 31 -->
     - [待處理] services：`authService` / `missionService` API 呼叫 mock 測試與錯誤處理 <!-- id: 32 -->
+    - [待處理] UI 邏輯：重疊率(路徑間距) 與 路徑間距 雙向同步、旋轉角度即時重算路徑、最窄邊界間距上限檢核 <!-- id: 32a -->
 - [待處理] **後端測試規劃** <!-- id: 33 -->
     - [待處理] Auth API：註冊/登入/權杖驗證流程的整合測試（含錯誤碼） <!-- id: 34 -->
     - [待處理] Missions API：CRUD 與權限驗證的整合測試，含邊界輸入 <!-- id: 35 -->
