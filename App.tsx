@@ -19,6 +19,13 @@ const App: React.FC = () => {
     reversePoints: false,
     straightenPaths: true,
     correction: true,
+    units: 'metric',
+    interval: 2,
+    actionType: 'none',
+    maintainAltitude: false,
+    generateEveryPoint: false,
+    onCompletion: 'hover',
+    splitMission: false,
   });
 
   const [missionArea, setMissionArea] = useState<any>(null);
@@ -42,7 +49,7 @@ const App: React.FC = () => {
         />
       }
     >
-      <MapEditor onAreaChange={handleAreaChange} />
+      <MapEditor activeTool={activeTool} onAreaChange={handleAreaChange} />
     </Layout>
   );
 };

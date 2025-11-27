@@ -1,67 +1,87 @@
-import React from 'react';
-import {
-    MousePointer2,
-    Pentagon,
-    Square,
-    Circle,
-    MapPin,
-    Settings,
-    HelpCircle,
-    Menu
-} from 'lucide-react';
+import React, { useRef } from 'react';
+import { Pentagon, Square, MapPin, MousePointer2, MousePointer, Upload } from 'lucide-react';
 
 interface SidebarProps {
     activeTool: string;
     onToolChange: (tool: string) => void;
+    onImport?: (file: File) => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTool, onToolChange }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeTool, onToolChange, onImport }) => {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     const tools = [
-        { id: 'select', icon: MousePointer2, label: '選取' },
         { id: 'polygon', icon: Pentagon, label: '多邊形' },
         { id: 'rectangle', icon: Square, label: '矩形' },
-        { id: 'circle', icon: Circle, label: '圓形' },
-        { id: 'waypoint', icon: MapPin, label: '航點' },
+        { id: 'poi', icon: MapPin, label: '興趣點' },
+        { id: 'waypoint', icon: MousePointer2, label: '航點' },
+        { id: 'select', icon: MousePointer, label: '選取' },
     ];
 
+    const handleImportClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file && onImport) {
+            onImport(file);
+        }
+        // Reset input value to allow selecting the same file again
+        if (event.target) {
+            event.target.value = '';
+        }
+    };
+
     return (
-        <div className="h-full w-16 bg-slate-900 flex flex-col items-center py-4 gap-4 text-slate-400">
-            {/* Logo / Menu */}
-            <div className="p-2 mb-4 text-white hover:bg-slate-800 rounded-lg cursor-pointer transition-colors">
-                <Menu className="w-6 h-6" />
+        <div className="h-full w-16 bg-white border-r border-primary/10 flex flex-col items-center py-4 gap-4 z-20 relative shadow-xl">
+            {/* Import Button */}
+            <div className="w-full px-2 mb-2">
+                <button
+                    onClick={handleImportClick}
+                    className="w-full aspect-square flex flex-col items-center justify-center bg-paper text-secondary hover:bg-secondary hover:text-white transition-colors group relative border border-primary/10"
+                    title="匯入 KMZ/KML"
+                >
+                    <Upload className="w-6 h-6" />
+                    <span className="absolute left-full ml-2 px-2 py-1 bg-primary text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                        匯入
+                    </span>
+                </button>
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept=".kmz,.kml"
+                    className="hidden"
+                />
             </div>
+
+            <div className="w-8 h-px bg-primary/10" />
 
             {/* Tools */}
-            <div className="flex-1 flex flex-col gap-2 w-full px-2">
-                {tools.map((tool) => (
-                    <button
-                        key={tool.id}
-                        onClick={() => onToolChange(tool.id)}
-                        className={`p-3 rounded-xl flex justify-center items-center transition-all duration-200 group relative
-              ${activeTool === tool.id
-                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50'
-                                : 'hover:bg-slate-800 hover:text-slate-200'
-                            }`}
-                        title={tool.label}
-                    >
-                        <tool.icon className="w-5 h-5" />
+            <div className="flex flex-col gap-2 w-full px-2">
+                {tools.map((tool) => {
+                    const Icon = tool.icon;
+                    const isActive = activeTool === tool.id;
 
-                        {/* Tooltip */}
-                        <span className="absolute left-14 bg-slate-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
-                            {tool.label}
-                        </span>
-                    </button>
-                ))}
-            </div>
+                    return (
+                        <button
+                            key={tool.id}
+                            onClick={() => onToolChange(tool.id)}
+                            className={`w-full aspect-square flex flex-col items-center justify-center transition-all duration-200 group relative border ${isActive
+                                    ? 'bg-primary text-white border-primary shadow-md'
+                                    : 'bg-white text-secondary border-transparent hover:bg-paper hover:text-primary'
+                                }`}
+                        >
+                            <Icon className={`w-6 h-6 ${isActive ? 'stroke-[2px]' : 'stroke-[1.5px]'}`} />
 
-            {/* Bottom Actions */}
-            <div className="flex flex-col gap-2 w-full px-2 mt-auto">
-                <button className="p-3 rounded-xl hover:bg-slate-800 hover:text-slate-200 flex justify-center transition-colors">
-                    <Settings className="w-5 h-5" />
-                </button>
-                <button className="p-3 rounded-xl hover:bg-slate-800 hover:text-slate-200 flex justify-center transition-colors">
-                    <HelpCircle className="w-5 h-5" />
-                </button>
+                            {/* Tooltip */}
+                            <span className="absolute left-full ml-2 px-2 py-1 bg-primary text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                                {tool.label}
+                            </span>
+                        </button>
+                    );
+                })}
             </div>
         </div>
     );
