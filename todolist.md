@@ -20,12 +20,12 @@
 
 ## 後端開發第二階段：核心功能
 
-- [ ] **任務管理 API** <!-- id: 12 -->
-    - [ ] 實作 `POST /api/missions` (建立/存檔) <!-- id: 13 -->
-    - [ ] 實作 `GET /api/missions` (列表) <!-- id: 14 -->
-    - [ ] 實作 `GET /api/missions/:id` (詳情) <!-- id: 15 -->
-    - [ ] 實作 `PUT /api/missions/:id` (更新) <!-- id: 16 -->
-    - [ ] 實作 `DELETE /api/missions/:id` (刪除) <!-- id: 17 -->
+- [x] **任務管理 API** <!-- id: 12 -->
+    - [x] 實作 `POST /api/missions` (建立/存檔) <!-- id: 13 -->
+    - [x] 實作 `GET /api/missions` (列表) <!-- id: 14 -->
+    - [x] 實作 `GET /api/missions/:id` (詳情) <!-- id: 15 -->
+    - [x] 實作 `PUT /api/missions/:id` (更新) <!-- id: 16 -->
+    - [x] 實作 `DELETE /api/missions/:id` (刪除) <!-- id: 17 -->
 
 
 

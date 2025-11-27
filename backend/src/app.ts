@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 
 import authRoutes from './routes/authRoutes';
+import missionRoutes from './routes/missionRoutes';
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.use(morgan('dev'));
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/missions', missionRoutes);
 
 // Basic Route
 app.get('/', (_req, res) => {
