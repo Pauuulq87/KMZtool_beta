@@ -1,15 +1,13 @@
 import React, { useRef } from 'react';
-import { Pentagon, Square, MapPin, MousePointer2, MousePointer, Upload, Circle, Save, FolderOpen } from 'lucide-react';
+import { Pentagon, Square, MapPin, MousePointer2, MousePointer, Upload, Circle } from 'lucide-react';
 
 interface SidebarProps {
     activeTool: string;
     onToolChange: (tool: string) => void;
     onImport?: (file: File) => void;
-    onSave?: () => void;
-    onLoad?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTool, onToolChange, onImport, onSave, onLoad }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeTool, onToolChange, onImport }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const tools = [
@@ -36,32 +34,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTool, onToolChange, onIm
 
     return (
         <div className="h-full w-16 bg-white border-r border-primary/10 flex flex-col items-center py-4 gap-4 z-20 relative shadow-xl">
-            {/* Save/Load Actions */}
-            <div className="w-full px-2 flex flex-col gap-2">
-                <button
-                    onClick={onSave}
-                    className="w-full aspect-square flex flex-col items-center justify-center bg-paper text-secondary hover:bg-secondary hover:text-white transition-colors group relative border border-primary/10"
-                    title="儲存任務"
-                >
-                    <Save className="w-6 h-6" />
-                    <span className="absolute left-full ml-2 px-2 py-1 bg-primary text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
-                        儲存
-                    </span>
-                </button>
-                <button
-                    onClick={onLoad}
-                    className="w-full aspect-square flex flex-col items-center justify-center bg-paper text-secondary hover:bg-secondary hover:text-white transition-colors group relative border border-primary/10"
-                    title="載入任務"
-                >
-                    <FolderOpen className="w-6 h-6" />
-                    <span className="absolute left-full ml-2 px-2 py-1 bg-primary text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
-                        載入
-                    </span>
-                </button>
-            </div>
-
-            <div className="w-8 h-px bg-primary/10" />
-
             {/* Import Button */}
             <div className="w-full px-2 mb-2">
                 <button

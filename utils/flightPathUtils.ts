@@ -64,20 +64,118 @@ const getCenter = (coords: Point[]): Point => {
 };
 
 /**
+ * 點是否位於多邊形內（射線法）。
+ */
+const isPointInPolygon = (point: Point, polygon: Point[]): boolean => {
+    if (!polygon || polygon.length < 3) return false;
+    // 確保閉合
+    const pts = polygon[0].lat === polygon[polygon.length - 1]?.lat && polygon[0].lng === polygon[polygon.length - 1]?.lng
+        ? polygon
+        : [...polygon, polygon[0]];
+
+    // 邊界判斷：若點在線段上則視為內部
+    const onSegment = (p: Point, a: Point, b: Point) => {
+        const cross = (p.lat - a.lat) * (b.lng - a.lng) - (p.lng - a.lng) * (b.lat - a.lat);
+        if (Math.abs(cross) > 1e-10) return false;
+        const dot = (p.lng - a.lng) * (b.lng - a.lng) + (p.lat - a.lat) * (b.lat - a.lat);
+        if (dot < 0) return false;
+        const lenSq = (b.lng - a.lng) ** 2 + (b.lat - a.lat) ** 2;
+        if (dot > lenSq) return false;
+        return true;
+    };
+
+    for (let i = 0; i < pts.length - 1; i++) {
+        if (onSegment(point, pts[i], pts[i + 1])) return true;
+    }
+
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const xi = pts[i].lng, yi = pts[i].lat;
+        const xj = pts[j].lng, yj = pts[j].lat;
+        const intersect = ((yi > point.lat) !== (yj > point.lat)) &&
+            (point.lng < (xj - xi) * (point.lat - yi) / (yj - yi + 1e-12) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+};
+
+/**
+ * 生成圓形航線，機頭朝向圓心。
+ */
+export const generateCirclePath = (center: Point, radiusMeters: number, settings: MissionSettings): Waypoint[] => {
+    if (!center || radiusMeters <= 0) return [];
+
+    const circumference = 2 * Math.PI * radiusMeters;
+    const spacing = Math.max(0.5, Math.min(settings.pathDistance || radiusMeters / 4, circumference));
+    const steps = Math.max(6, Math.ceil(circumference / spacing));
+    const angleStep = 360 / steps;
+    const earthRadius = 6371000;
+
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const toDeg = (rad: number) => (rad * 180) / Math.PI;
+
+    const waypoints: Waypoint[] = [];
+    for (let i = 0; i < steps; i++) {
+        const bearing = toRad(i * angleStep);
+
+        // 簡化：以球面公式由圓心偏移固定半徑
+        const lat1 = toRad(center.lat);
+        const lng1 = toRad(center.lng);
+        const angDist = radiusMeters / earthRadius;
+
+        const lat2 = Math.asin(Math.sin(lat1) * Math.cos(angDist) + Math.cos(lat1) * Math.sin(angDist) * Math.cos(bearing));
+        const lng2 = lng1 + Math.atan2(Math.sin(bearing) * Math.sin(angDist) * Math.cos(lat1), Math.cos(angDist) - Math.sin(lat1) * Math.sin(lat2));
+
+        const point: Point = { lat: toDeg(lat2), lng: toDeg(lng2) };
+        // 機頭指向圓心
+        const headingToCenter = (toDeg(Math.atan2(center.lng - point.lng, center.lat - point.lat)) + 360) % 360;
+
+        waypoints.push({
+            ...point,
+            id: `wp-${i + 1}`,
+            sequence: i + 1,
+            alt: settings.altitude,
+            speed: settings.speed,
+            heading: headingToCenter,
+        });
+    }
+
+    return waypoints;
+};
+
+/**
+ * 以使用者第一條邊為基準，計算將其對齊目標軸向所需的旋轉角度（度）。
+ * 目標軸向：南北向 => 90° (垂直)、東西向 => 0° (水平)。
+ */
+const getAlignmentRotation = (polygonCoords: PolygonCoords | undefined, orientation: string): number => {
+    if (!polygonCoords || polygonCoords.length < 2) return 0;
+    const [firstLng, firstLat] = polygonCoords[0];
+    const [secondLng, secondLat] = polygonCoords[1];
+    const edgeAngleRad = Math.atan2(secondLat - firstLat, secondLng - firstLng); // 以東向為 0°、逆時針為正
+    const edgeAngleDeg = (edgeAngleRad * 180) / Math.PI;
+    const target = orientation === '南北向' ? 90 : 0;
+    return target - edgeAngleDeg;
+};
+
+/**
  * 取得可用的路徑間距上限（公尺），以最窄邊界為限制並考慮旋轉角度。
  */
 export const getAvailableSpacingMeters = (
     polygonCoords: PolygonCoords | undefined,
-    rotationAngle: number,
-    orientation: string,
+    settings: MissionSettings,
 ): number | null => {
     if (!polygonCoords || polygonCoords.length === 0) return null;
 
     const polygonPoints: Point[] = polygonCoords.map(([lng, lat]) => ({ lat, lng }));
     const center = getCenter(polygonPoints);
-    const rotatedPolygon = polygonPoints.map(p => rotatePoint(p, -rotationAngle, center));
+    const alignmentRotation = getAlignmentRotation(polygonCoords, settings.orientation);
+    const totalRotation = (settings.rotationAngle || 0) + alignmentRotation;
+    const rotatedPolygon = polygonPoints.map(p => rotatePoint(p, -totalRotation, center));
+    const polygonForClip = rotatedPolygon.length > 1 && (rotatedPolygon[0].lat !== rotatedPolygon[rotatedPolygon.length - 1]?.lat || rotatedPolygon[0].lng !== rotatedPolygon[rotatedPolygon.length - 1]?.lng)
+        ? [...rotatedPolygon, rotatedPolygon[0]]
+        : rotatedPolygon;
 
-    const rotatedBounds = rotatedPolygon.reduce(
+    const rotatedBounds = polygonForClip.reduce(
         (acc, p) => ({
             north: Math.max(acc.north, p.lat),
             south: Math.min(acc.south, p.lat),
@@ -92,8 +190,16 @@ export const getAvailableSpacingMeters = (
     const northSouthMeters = (rotatedBounds.north - rotatedBounds.south) * 111111;
 
     // 依掃描線方向取對應寬度，確保起始線貼邊且間距上限符合該方向跨度
-    const meters = orientation === '南北向' ? eastWestMeters : northSouthMeters;
+    const meters = settings.orientation === '南北向' ? eastWestMeters : northSouthMeters;
     return Math.max(0, Math.abs(meters));
+};
+
+/**
+ * 取得對齊第一條邊後的總旋轉角度（使用者旋轉 + 對齊量）。
+ */
+export const getTotalRotation = (polygonCoords: PolygonCoords | undefined, settings: MissionSettings): number => {
+    const alignmentRotation = getAlignmentRotation(polygonCoords, settings.orientation);
+    return (settings.rotationAngle || 0) + alignmentRotation;
 };
 
 /**
@@ -122,12 +228,15 @@ export const generateRectanglePath = (
         ];
 
     const center = getCenter(polygonPoints);
-    const angle = settings.rotationAngle || 0;
+    const totalRotation = getTotalRotation(polygonCoords, settings);
 
     // 旋轉多邊形至新座標系，生成掃描線，再將結果旋回
-    const rotatedPolygon = polygonPoints.map(p => rotatePoint(p, -angle, center));
+    const rotatedPolygon = polygonPoints.map(p => rotatePoint(p, -totalRotation, center));
+    const polygonForClip = rotatedPolygon.length > 1 && (rotatedPolygon[0].lat !== rotatedPolygon[rotatedPolygon.length - 1]?.lat || rotatedPolygon[0].lng !== rotatedPolygon[rotatedPolygon.length - 1]?.lng)
+        ? [...rotatedPolygon, rotatedPolygon[0]]
+        : rotatedPolygon;
 
-    const rotatedBounds = rotatedPolygon.reduce(
+    const rotatedBounds = polygonForClip.reduce(
         (acc, p) => ({
             north: Math.max(acc.north, p.lat),
             south: Math.min(acc.south, p.lat),
@@ -143,7 +252,7 @@ export const generateRectanglePath = (
     const west = rotatedBounds.west;
 
     // 路徑間距：以使用者設定為主，同時限制不得超過最窄邊界
-    const availableSpacing = getAvailableSpacingMeters(polygonCoords, angle, settings.orientation) ?? settings.pathDistance;
+    const availableSpacing = getAvailableSpacingMeters(polygonCoords, settings) ?? settings.pathDistance;
     const widthConstraint = Math.max(availableSpacing, 0.5);
     const overlapRatio = Math.max(0, Math.min(0.95, (settings.overlap ?? 0) / 100));
     let spacing = settings.pathDistance || (widthConstraint * (1 - overlapRatio));
@@ -170,12 +279,12 @@ export const generateRectanglePath = (
 
     // 辅助：垂直線與多邊形的交點切片
     const clipVertical = (lng: number) => {
-        if (!rotatedPolygon || rotatedPolygon.length < 2) return [{ start: south, end: north }];
+        if (!polygonForClip || polygonForClip.length < 2) return [];
         const intersects: number[] = [];
 
-        for (let i = 0; i < rotatedPolygon.length - 1; i++) {
-            const { lng: x1, lat: y1 } = rotatedPolygon[i];
-            const { lng: x2, lat: y2 } = rotatedPolygon[i + 1];
+        for (let i = 0; i < polygonForClip.length - 1; i++) {
+            const { lng: x1, lat: y1 } = polygonForClip[i];
+            const { lng: x2, lat: y2 } = polygonForClip[i + 1];
             // 忽略水平線
             if (x1 === x2) {
                 if (x1 === lng) {
@@ -204,12 +313,12 @@ export const generateRectanglePath = (
 
     // 輔助：水平線與多邊形的交點切片
     const clipHorizontal = (lat: number) => {
-        if (!rotatedPolygon || rotatedPolygon.length < 2) return [{ start: west, end: east }];
+        if (!polygonForClip || polygonForClip.length < 2) return [];
         const intersects: number[] = [];
 
-        for (let i = 0; i < rotatedPolygon.length - 1; i++) {
-            const { lng: x1, lat: y1 } = rotatedPolygon[i];
-            const { lng: x2, lat: y2 } = rotatedPolygon[i + 1];
+        for (let i = 0; i < polygonForClip.length - 1; i++) {
+            const { lng: x1, lat: y1 } = polygonForClip[i];
+            const { lng: x2, lat: y2 } = polygonForClip[i + 1];
             if (y1 === y2) {
                 if (y1 === lat) {
                     intersects.push(x1, x2);
@@ -311,11 +420,29 @@ export const generateRectanglePath = (
         });
     }
 
-    // 將座標旋回原始坐標系
-    return waypoints.map(wp => {
-        const rotatedBack = rotatePoint({ lat: wp.lat, lng: wp.lng }, angle, center);
-        return { ...wp, lat: rotatedBack.lat, lng: rotatedBack.lng };
+    // 將座標旋回原始坐標系，並以段為單位過濾（若任一端點超出多邊形，整段捨棄避免斷裂）
+    const rotatedBack = waypoints.map(wp => {
+        const p = rotatePoint({ lat: wp.lat, lng: wp.lng }, totalRotation, center);
+        return { ...wp, lat: p.lat, lng: p.lng };
     });
+
+    const originalPolygonClosed = polygonPoints[0].lat === polygonPoints[polygonPoints.length - 1]?.lat && polygonPoints[0].lng === polygonPoints[polygonPoints.length - 1]?.lng
+        ? polygonPoints
+        : [...polygonPoints, polygonPoints[0]];
+
+    const filtered: Waypoint[] = [];
+    for (let i = 0; i < rotatedBack.length; i += 2) {
+        const p1 = rotatedBack[i];
+        const p2 = rotatedBack[i + 1];
+        if (!p1 || !p2) break;
+        const inside1 = isPointInPolygon({ lat: p1.lat, lng: p1.lng }, originalPolygonClosed);
+        const inside2 = isPointInPolygon({ lat: p2.lat, lng: p2.lng }, originalPolygonClosed);
+        if (inside1 && inside2) {
+            filtered.push(p1, p2);
+        }
+    }
+
+    return filtered;
 };
 
 /**

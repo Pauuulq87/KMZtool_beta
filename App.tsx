@@ -7,10 +7,8 @@ import { Navbar } from './components/Navbar';
 import { AuthModal } from './components/AuthModal';
 import { MissionSettings } from './types';
 import { authService, User } from './services/authService';
-import { missionService } from './services/missionService';
 
-import { MissionModal } from './components/MissionModal';
-import { getAvailableSpacingMeters } from './utils/flightPathUtils';
+import { getAvailableSpacingMeters, generateCirclePath, generateRectanglePath, generateKML } from './utils/flightPathUtils';
 
 const App: React.FC = () => {
   // 工具：統一檔案下載流程
@@ -23,15 +21,6 @@ const App: React.FC = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
-
-  // 工具：將航點依指定大小分段，供分割下載使用
-  const chunkWaypoints = <T,>(items: T[], size: number): T[][] => {
-    const chunks: T[][] = [];
-    for (let i = 0; i < items.length; i += size) {
-      chunks.push(items.slice(i, i + size));
-    }
-    return chunks;
   };
 
   // State
@@ -61,12 +50,11 @@ const App: React.FC = () => {
   const [missionPOIs, setMissionPOIs] = useState<any[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [isMissionModalOpen, setIsMissionModalOpen] = useState(false);
-  const [currentMissionId, setCurrentMissionId] = useState<string | null>(null);
   const [generatedWaypoints, setGeneratedWaypoints] = useState<any[]>([]);
   const [loadedMissionArea, setLoadedMissionArea] = useState<any>(null);
   const [loadedPOIs, setLoadedPOIs] = useState<any[]>([]);
   const [availableSpacingMeters, setAvailableSpacingMeters] = useState<number | null>(null);
+  const [estimatedTimeText, setEstimatedTimeText] = useState<string>('—');
 
   // Check auth on mount
   useEffect(() => {
@@ -102,7 +90,7 @@ const App: React.FC = () => {
     } else if (geoJson.geometry && (geoJson.geometry.type === 'Polygon' || geoJson.geometry.type === 'MultiPolygon')) {
       setMissionArea(geoJson);
       const coords = geoJson.geometry.coordinates?.[0];
-      const spacing = getAvailableSpacingMeters(coords, settings.rotationAngle, settings.orientation);
+      const spacing = getAvailableSpacingMeters(coords, settings);
       setAvailableSpacingMeters(spacing);
     } else if (geoJson.geometry && geoJson.geometry.type === 'Point') {
       // Single POI? MapManager emits FeatureCollection for POIs usually, but let's handle single point if needed
@@ -114,13 +102,41 @@ const App: React.FC = () => {
     }
   };
 
+  // 計算預估飛行時間（僅以航點連線長度/速度估算）
+  const computeEstimatedTime = (waypoints: any[], speed: number) => {
+    if (!waypoints || waypoints.length < 2 || speed <= 0) return '—';
+
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    let distanceMeters = 0;
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const p1 = waypoints[i];
+      const p2 = waypoints[i + 1];
+      const R = 6371e3;
+      const phi1 = toRad(p1.lat);
+      const phi2 = toRad(p2.lat);
+      const dPhi = toRad(p2.lat - p1.lat);
+      const dLambda = toRad(p2.lng - p1.lng);
+      const a = Math.sin(dPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      distanceMeters += R * c;
+    }
+
+    const seconds = distanceMeters / speed;
+    const hh = Math.floor(seconds / 3600).toString().padStart(2, '0');
+    const mm = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+    const ss = Math.floor(seconds % 60).toString().padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
+  };
+
   // 依照可用寬度自動收斂重疊率與間距
   useEffect(() => {
     if (!missionArea || !missionArea.geometry) return;
     const coords = missionArea.geometry.coordinates?.[0];
-    const spacing = getAvailableSpacingMeters(coords, settings.rotationAngle, settings.orientation);
+    const spacing = getAvailableSpacingMeters(coords, settings);
     setAvailableSpacingMeters(spacing);
   }, [missionArea, settings.rotationAngle, settings.orientation]);
+
+  // 可用寬度更新時，強制收斂間距與重疊率
 
   // 可用寬度更新時，強制收斂間距與重疊率
   useEffect(() => {
@@ -128,12 +144,17 @@ const App: React.FC = () => {
     setSettings((prev) => {
       const width = availableSpacingMeters;
       const clampedSpacing = Math.min(prev.pathDistance, width);
-      const derivedOverlap = Math.max(0, Math.min(95, Math.round((1 - clampedSpacing / width) * 100)));
+      const derivedOverlap = Math.max(20, Math.min(95, Math.round((1 - clampedSpacing / width) * 100)));
 
       if (clampedSpacing === prev.pathDistance && derivedOverlap === prev.overlap) return prev;
       return { ...prev, pathDistance: clampedSpacing, overlap: derivedOverlap };
     });
   }, [availableSpacingMeters]);
+
+  // 估算時間：航點或速度變動時更新
+  useEffect(() => {
+    setEstimatedTimeText(computeEstimatedTime(generatedWaypoints, settings.speed));
+  }, [generatedWaypoints, settings.speed]);
 
   // 設定調整：重疊率與間距雙向同步並尊重可用寬度
   const handleSettingsChange = (partial: Partial<MissionSettings>) => {
@@ -143,13 +164,13 @@ const App: React.FC = () => {
       const width = availableSpacingMeters ?? null;
       if (width && width > 0) {
         if (partial.overlap !== undefined) {
-          const safeOverlap = Math.min(95, Math.max(0, Number(partial.overlap)));
+          const safeOverlap = Math.min(95, Math.max(20, Number(partial.overlap)));
           const spacingByOverlap = Math.max(0.5, Math.min(width, parseFloat((width * (1 - safeOverlap / 100)).toFixed(2))));
           next.overlap = safeOverlap;
           next.pathDistance = spacingByOverlap;
         } else if (partial.pathDistance !== undefined) {
           const requestedSpacing = Math.max(0.5, Math.min(width, Number(partial.pathDistance)));
-          const derivedOverlap = Math.max(0, Math.min(95, Math.round((1 - requestedSpacing / width) * 100)));
+          const derivedOverlap = Math.max(20, Math.min(95, Math.round((1 - requestedSpacing / width) * 100)));
           next.pathDistance = requestedSpacing;
           next.overlap = derivedOverlap;
         } else {
@@ -189,15 +210,21 @@ const App: React.FC = () => {
         west: minLng
       };
 
-      // Dynamic import to avoid circular dependency issues if any, or just standard import
-      import('./utils/flightPathUtils').then(({ generateRectanglePath }) => {
-        const polygonCoords = missionArea.geometry.coordinates?.[0];
-        const waypoints = generateRectanglePath(bounds, settings, polygonCoords);
-        setGeneratedWaypoints(waypoints);
-        console.log('Generated waypoints:', waypoints);
-      });
+      const polygonCoords = missionArea.geometry.coordinates?.[0];
+      const waypoints = generateRectanglePath(bounds, settings, polygonCoords);
+      setGeneratedWaypoints(waypoints);
+      console.log('Generated waypoints:', waypoints);
     } else if (missionArea.properties && missionArea.properties.type === 'circle') {
-      alert('圓形區域路徑生成尚未實作');
+      const radius = missionArea.properties.radius;
+      const centerLng = missionArea.geometry.coordinates?.[0];
+      const centerLat = missionArea.geometry.coordinates?.[1];
+      if (!radius || !centerLng || !centerLat) {
+        alert('圓形資訊不足，請重新繪製');
+        return;
+      }
+      const waypoints = generateCirclePath({ lat: centerLat, lng: centerLng }, radius, settings);
+      setGeneratedWaypoints(waypoints);
+      console.log('Generated circle waypoints:', waypoints);
     } else {
       alert('目前僅支援矩形/多邊形區域產生路徑');
     }
@@ -215,26 +242,12 @@ const App: React.FC = () => {
       return;
     }
 
-    const { generateKML } = await import('./utils/flightPathUtils');
     const missionName = (customName || 'mission').trim();
     const mimeType = 'application/vnd.google-earth.kml+xml';
     const chunkSize = 200;
 
-    if (settings.splitMission && generatedWaypoints.length > chunkSize) {
-      const segments = chunkWaypoints(generatedWaypoints, chunkSize);
-      segments.forEach((segment, index) => {
-        const kmlContent = generateKML(segment, `${missionName}-part-${index + 1}`, {
-          onCompletion: settings.onCompletion,
-          segmentIndex: index + 1,
-          totalSegments: segments.length,
-        });
-        downloadBlob(new Blob([kmlContent], { type: mimeType }), `${missionName}-part-${index + 1}.kml`);
-      });
-      alert(`已分割為 ${segments.length} 個檔案並開始下載`);
-    } else {
-      const kmlContent = generateKML(generatedWaypoints, missionName, { onCompletion: settings.onCompletion });
-      downloadBlob(new Blob([kmlContent], { type: mimeType }), `${missionName}.kml`);
-    }
+    const kmlContent = generateKML(generatedWaypoints, missionName, { onCompletion: settings.onCompletion });
+    downloadBlob(new Blob([kmlContent], { type: mimeType }), `${missionName}.kml`);
   };
 
   const handleLoginSuccess = (user: User) => {
@@ -246,82 +259,6 @@ const App: React.FC = () => {
     authService.logout();
     setUser(null);
     setCurrentMissionId(null);
-  };
-
-  const handleSaveMission = async (providedName?: string) => {
-    if (!user) {
-      setIsAuthModalOpen(true);
-      return;
-    }
-
-    const missionName = (providedName || prompt('請輸入任務名稱', '未命名任務') || '').trim();
-    if (!missionName) return;
-
-    try {
-      const missionData = {
-        name: missionName,
-        settings,
-        waypoints: generatedWaypoints,
-        pois: missionPOIs,
-        area: missionArea,
-      };
-
-      if (currentMissionId) {
-        await missionService.update(currentMissionId, missionData);
-        alert('任務更新成功！');
-      } else {
-        const newMission = await missionService.create(missionData);
-        setCurrentMissionId(newMission.id);
-        alert('任務儲存成功！');
-      }
-    } catch (error) {
-      console.error('Save mission failed:', error);
-      alert('儲存失敗，請稍後再試');
-    }
-  };
-
-  const handleLoadMission = async (missionId: string) => {
-    try {
-      const mission = await missionService.getById(missionId);
-      setSettings({
-        rotationAngle: 0,
-        ...mission.settings,
-      });
-      setCurrentMissionId(mission.id);
-      if (mission.waypoints) {
-        setGeneratedWaypoints(mission.waypoints);
-      }
-      if (mission.pois) {
-        setMissionPOIs(mission.pois);
-        setLoadedPOIs(mission.pois);
-      }
-      if (mission.area) {
-        setMissionArea(mission.area);
-        setLoadedMissionArea(mission.area);
-      }
-      // Note: missionArea restoration is handled by passing it to MapEditor
-      // We added `area` to the save payload.
-
-      console.log('Loaded mission:', mission);
-      alert('任務載入成功！');
-    } catch (error) {
-      console.error('Load mission failed:', error);
-      alert('載入失敗');
-    }
-  };
-
-  // 下載自動安裝程式占位檔：提供操作指引
-  const handleDownloadInstaller = () => {
-    const instructions = [
-      'KMZ 自動安裝程式 V2 (指引占位檔)',
-      '目前安裝程式仍在處理防毒誤報，請改用以下方式：',
-      '1. 下載 mission.kml 後以 OpenMTP 將檔案放入裝置。',
-      '2. 如需自動化腳本，可聯繫專案維護者取得測試版。',
-      `產生時間：${new Date().toISOString()}`,
-    ].join('\n');
-
-    downloadBlob(new Blob([instructions], { type: 'text/plain' }), 'KMZ-installer-guide.txt');
-    alert('已提供暫時指引檔，正式安裝程式完成後可直接更新下載連結。');
   };
 
   return (
@@ -336,14 +273,6 @@ const App: React.FC = () => {
           <Sidebar
             activeTool={activeTool}
             onToolChange={setActiveTool}
-            onSave={handleSaveMission}
-            onLoad={() => {
-              if (!user) {
-                setIsAuthModalOpen(true);
-                return;
-              }
-              setIsMissionModalOpen(true);
-            }}
           />
         }
         propertiesPanel={
@@ -352,9 +281,8 @@ const App: React.FC = () => {
             onSettingsChange={handleSettingsChange}
             onGenerate={handleGenerateMission}
             onDownload={handleDownloadKMZ}
-            onSaveToAccount={handleSaveMission}
-            onDownloadInstaller={handleDownloadInstaller}
             availableSpacingMeters={availableSpacingMeters}
+            estimatedTimeText={estimatedTimeText}
           />
         }
       >
@@ -371,12 +299,6 @@ const App: React.FC = () => {
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         onLoginSuccess={handleLoginSuccess}
-      />
-
-      <MissionModal
-        isOpen={isMissionModalOpen}
-        onClose={() => setIsMissionModalOpen(false)}
-        onLoadMission={handleLoadMission}
       />
     </>
   );

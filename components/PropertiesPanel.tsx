@@ -7,12 +7,11 @@ interface PropertiesPanelProps {
     onSettingsChange: (settings: Partial<MissionSettings>) => void;
     onGenerate?: () => void;
     onDownload?: (missionName?: string) => void;
-    onSaveToAccount?: (missionName?: string) => void;
-    onDownloadInstaller?: () => void;
     availableSpacingMeters?: number | null;
+    estimatedTimeText?: string;
 }
 
-export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSettingsChange, onGenerate, onDownload, onSaveToAccount, onDownloadInstaller, availableSpacingMeters }) => {
+export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSettingsChange, onGenerate, onDownload, availableSpacingMeters, estimatedTimeText }) => {
     const [activeTab, setActiveTab] = useState<'params' | 'download'>('params');
     const [presetName, setPresetName] = useState('');
     const [missionName, setMissionName] = useState('');
@@ -38,15 +37,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
     // 下載按鈕：帶入使用者輸入的任務名稱
     const handleDownload = () => {
         onDownload?.(missionName.trim() || undefined);
-    };
-
-    // 儲存至帳號：帶入任務名稱並呼叫外層邏輯
-    const handleSaveToAccount = () => {
-        if (!missionName.trim()) {
-            alert('請先輸入任務名稱');
-            return;
-        }
-        onSaveToAccount?.(missionName.trim());
     };
 
     return (
@@ -85,7 +75,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
                             </div>
                             <input
                                 type="range"
-                                min="0"
+                                min="20"
                                 max="95"
                                 step={5}
                                 value={settings.overlap}
@@ -95,6 +85,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
                             <div className="flex justify-between text-xs text-secondary font-medium uppercase tracking-wide">
                                 <span>快速 (低重疊)</span>
                                 <span>高品質 (高重疊)</span>
+                            </div>
+
+                            <div className="mt-2 text-sm text-secondary font-medium">
+                                預估飛行時間：{estimatedTimeText || '—'}
                             </div>
 
                             <div className="mt-3 space-y-1.5">
@@ -358,6 +352,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
                         <div>
                             <h2 className="text-xl font-serif font-bold text-primary">下載與儲存</h2>
                             <p className="text-secondary mt-1">下載最終的 DJI .KMZ 檔案</p>
+                            <p className="text-secondary text-sm mt-1">預估飛行時間：{estimatedTimeText || '—'}</p>
                         </div>
 
                         <div className="flex items-center gap-3 bg-paper p-3 border border-primary/10">
@@ -385,20 +380,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
                                 </select>
                             </div>
 
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={() => updateSetting('splitMission', !settings.splitMission)}
-                                    className={`w-11 h-6 relative transition-colors duration-200 focus:outline-none ${settings.splitMission ? 'bg-secondary' : 'bg-gray-300'}`}
-                                >
-                                    <div className={`absolute top-1 w-4 h-4 bg-white shadow-sm transition-all duration-200 ${settings.splitMission ? 'left-6' : 'left-1'}`} />
-                                </button>
-                                <span className="text-sm font-medium text-primary">分割任務</span>
-                            </div>
-
-                            <div className="text-sm font-medium text-secondary">
-                                預估任務時間：<span className="text-primary">—</span>
-                            </div>
-
                             <div className="space-y-3">
                                 <button
                                     onClick={handleDownload}
@@ -406,37 +387,18 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ settings, onSe
                                 >
                                     下載 KMZ
                                 </button>
-                                <button
-                                    onClick={onDownloadInstaller}
-                                    className="w-full py-3 bg-secondary/90 hover:bg-secondary text-white font-bold text-sm transition-colors shadow-md flex flex-col items-center justify-center gap-0.5"
-                                >
-                                    <span>下載 KMZ 自動安裝程式 V2 (Windows)</span>
-                                    <span className="font-normal text-xs opacity-90">(正在解決防毒軟體誤報問題)</span>
-                                </button>
                             </div>
-
-                            <p className="text-sm text-secondary">
-                                Mac 使用者需安裝 <a href="#" className="text-secondary hover:underline font-bold">OpenMTP</a> 並手動替換檔案
-                            </p>
                         </div>
-
-                        <div className="pt-8 border-t border-primary/10 space-y-4">
-                            <h3 className="text-lg font-serif font-bold text-primary">儲存任務至帳號</h3>
-                            <div className="flex gap-3">
-                                <input
-                                    type="text"
-                                    placeholder="任務名稱"
-                                    value={missionName}
-                                    onChange={(e) => setMissionName(e.target.value)}
-                                    className="flex-1 p-3 bg-white border border-primary/20 text-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                                />
-                                <button
-                                    onClick={handleSaveToAccount}
-                                    className="px-8 py-3 bg-secondary hover:bg-primary text-white font-bold shadow-md transition-colors"
-                                >
-                                    儲存
-                                </button>
-                            </div>
+                        <div className="pt-8 border-t border-primary/10 space-y-3">
+                            <h3 className="text-lg font-serif font-bold text-primary">下載檔名</h3>
+                            <input
+                                type="text"
+                                placeholder="輸入檔名（預設 mission.kml)"
+                                value={missionName}
+                                onChange={(e) => setMissionName(e.target.value)}
+                                className="w-full p-3 bg-white border border-primary/20 text-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                            />
+                            <p className="text-xs text-secondary">檔名將套用於下載的 KMZ/KML。</p>
                         </div>
                     </div>
                 )}
