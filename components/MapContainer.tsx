@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { APIProvider, Map, useMap, useMapsLibrary, ControlPosition } from '@vis.gl/react-google-maps';
 import { Undo, Redo, RotateCcw, Upload, Search, Hexagon, Square, MapPin, MousePointer, Navigation } from 'lucide-react';
+import { POIInfoWindow, POIData } from './POIInfoWindow';
 
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
@@ -49,11 +50,17 @@ const InstructionOverlay = ({ visible }: { visible: boolean }) => {
     );
 };
 
+
+
 const MapManager = ({ activeTool, onAreaChange }: { activeTool: string, onAreaChange?: (geoJson: any) => void }) => {
     const map = useMap();
     const drawing = useMapsLibrary('drawing');
     const [drawingManager, setDrawingManager] = useState<google.maps.drawing.DrawingManager | null>(null);
     const currentOverlay = useRef<google.maps.MVCObject | null>(null);
+
+    // POI State
+    const poiSequence = useRef<{ markers: google.maps.Marker[], polyline: google.maps.Polyline | null }>({ markers: [], polyline: null });
+    const [selectedMarker, setSelectedMarker] = useState<google.maps.Marker | null>(null);
 
     // Initialize DrawingManager
     useEffect(() => {
@@ -69,7 +76,7 @@ const MapManager = ({ activeTool, onAreaChange }: { activeTool: string, onAreaCh
                 editable: true,
                 draggable: true,
             },
-            rectangleOptions: {
+            circleOptions: {
                 fillColor: '#ffff00',
                 fillOpacity: 0.3,
                 strokeWeight: 2,
@@ -92,40 +99,115 @@ const MapManager = ({ activeTool, onAreaChange }: { activeTool: string, onAreaCh
 
     // Handle Tool Changes
     useEffect(() => {
-        if (!drawingManager) return;
+        if (!drawingManager || !drawing) return;
 
         let mode: google.maps.drawing.OverlayType | null = null;
         switch (activeTool) {
             case 'polygon':
-                mode = google.maps.drawing.OverlayType.POLYGON;
+                mode = drawing.OverlayType.POLYGON;
                 break;
             case 'rectangle':
-                mode = google.maps.drawing.OverlayType.RECTANGLE;
+                mode = drawing.OverlayType.RECTANGLE;
+                break;
+            case 'circle':
+                mode = drawing.OverlayType.CIRCLE;
                 break;
             case 'poi':
-                mode = google.maps.drawing.OverlayType.MARKER;
-                break;
-            case 'waypoint':
-                // Waypoint logic might differ, treating as marker for now
-                mode = google.maps.drawing.OverlayType.MARKER;
+                mode = drawing.OverlayType.MARKER;
                 break;
             default:
                 mode = null;
         }
         drawingManager.setDrawingMode(mode);
 
-    }, [drawingManager, activeTool]);
+    }, [drawingManager, activeTool, drawing]);
+
+    // Reset POI sequence when tool changes (except when switching to 'poi' which starts new or continues?)
+    // Actually, we want to start fresh if we switch TO poi? Or just keep it?
+    // Let's assume switching tool resets the current drawing session.
+    useEffect(() => {
+        if (activeTool !== 'poi') {
+            // Clear POI sequence visual if we leave the tool? 
+            // Or maybe we should persist it? 
+            // For now, let's clear the "drawing session" state but the overlays might remain if we don't clear them.
+            // But the requirement is "until user stops".
+            // If we leave 'poi', we should probably finalize the sequence.
+            // For this implementation, we'll clear the internal reference to start a new sequence next time.
+            poiSequence.current = { markers: [], polyline: null };
+        }
+    }, [activeTool]);
+
+    // Helper to update Polyline
+    const updatePolyline = () => {
+        const seq = poiSequence.current;
+        if (seq.polyline) {
+            const newPath = seq.markers.map(m => m.getPosition()!);
+            seq.polyline.setPath(newPath);
+        }
+    };
+
+    // Helper to re-index markers
+    const reindexMarkers = () => {
+        poiSequence.current.markers.forEach((marker, index) => {
+            marker.setLabel((index + 1).toString());
+        });
+    };
+
+    // Handle Save POI
+    const handleSavePOI = (data: POIData) => {
+        if (!selectedMarker) return;
+
+        // Update position
+        const newPos = new google.maps.LatLng(data.lat, data.lng);
+        selectedMarker.setPosition(newPos);
+
+        // Update custom data
+        (selectedMarker as any).customData = {
+            alt: data.alt,
+            speed: data.speed,
+            angle: data.angle,
+            heading: data.heading,
+            action: data.action
+        };
+
+        // Update visuals
+        updatePolyline();
+
+        // Close window
+        setSelectedMarker(null);
+    };
+
+    // Handle Delete POI
+    const handleDeletePOI = () => {
+        if (!selectedMarker) return;
+
+        // Remove from map
+        selectedMarker.setMap(null);
+
+        // Remove from sequence
+        const index = poiSequence.current.markers.indexOf(selectedMarker);
+        if (index > -1) {
+            poiSequence.current.markers.splice(index, 1);
+        }
+
+        // Re-index and update path
+        reindexMarkers();
+        updatePolyline();
+
+        // Close window
+        setSelectedMarker(null);
+    };
 
     // Handle Overlay Complete
     useEffect(() => {
-        if (!drawingManager) return;
+        if (!drawingManager || !drawing) return;
 
         const updateArea = (overlay: any, type: google.maps.drawing.OverlayType) => {
             if (!onAreaChange) return;
 
             let geoJson: any = null;
 
-            if (type === google.maps.drawing.OverlayType.POLYGON) {
+            if (type === drawing.OverlayType.POLYGON) {
                 const path = overlay.getPath();
                 const coordinates = [];
                 for (let i = 0; i < path.getLength(); i++) {
@@ -139,7 +221,7 @@ const MapManager = ({ activeTool, onAreaChange }: { activeTool: string, onAreaCh
                     geometry: { type: 'Polygon', coordinates: [coordinates] },
                     properties: {}
                 };
-            } else if (type === google.maps.drawing.OverlayType.RECTANGLE) {
+            } else if (type === drawing.OverlayType.RECTANGLE) {
                 const bounds = overlay.getBounds();
                 const ne = bounds.getNorthEast();
                 const sw = bounds.getSouthWest();
@@ -157,6 +239,76 @@ const MapManager = ({ activeTool, onAreaChange }: { activeTool: string, onAreaCh
                     geometry: { type: 'Polygon', coordinates },
                     properties: {}
                 };
+            } else if (type === drawing.OverlayType.CIRCLE) {
+                const center = overlay.getCenter();
+                const radius = overlay.getRadius();
+                geoJson = {
+                    type: 'Feature',
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [center.lng(), center.lat()]
+                    },
+                    properties: {
+                        type: 'circle',
+                        radius: radius
+                    }
+                };
+            } else if (type === drawing.OverlayType.MARKER) {
+                // Sequential POI Logic
+                const marker = overlay as google.maps.Marker;
+                const currentSeq = poiSequence.current;
+
+                if (currentSeq.markers.length >= 50) {
+                    marker.setMap(null); // Remove if over limit
+                    return;
+                }
+
+                // Add to sequence
+                currentSeq.markers.push(marker);
+                const index = currentSeq.markers.length;
+                marker.setLabel(index.toString());
+
+                // Update Polyline
+                if (!currentSeq.polyline) {
+                    currentSeq.polyline = new google.maps.Polyline({
+                        map: map,
+                        path: [],
+                        strokeColor: '#0000FF', // Blue color for path
+                        strokeOpacity: 1.0,
+                        strokeWeight: 2,
+                        icons: [{
+                            icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW },
+                            offset: '100%',
+                            repeat: '100px' // Arrow every 100px or just at end? Screenshot shows arrows on line.
+                        }]
+                    });
+                }
+
+                const path = currentSeq.polyline.getPath();
+                path.push(marker.getPosition()!);
+
+                // Construct GeoJSON for the sequence (FeatureCollection?)
+                // Or just emit the latest point? 
+                // Usually onAreaChange expects a single Feature. 
+                // We might need to wrap this as a MultiPoint or just emit the last point for now,
+                // but the visual is handled by Google Maps objects.
+                // Let's emit a FeatureCollection of Points.
+                const features = currentSeq.markers.map((m, i) => ({
+                    type: 'Feature',
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [m.getPosition()!.lng(), m.getPosition()!.lat()]
+                    },
+                    properties: {
+                        type: 'poi',
+                        sequence: i + 1
+                    }
+                }));
+
+                geoJson = {
+                    type: 'FeatureCollection',
+                    features: features
+                };
             }
 
             if (geoJson) {
@@ -166,31 +318,61 @@ const MapManager = ({ activeTool, onAreaChange }: { activeTool: string, onAreaCh
         };
 
         const listener = google.maps.event.addListener(drawingManager, 'overlaycomplete', (event: google.maps.drawing.OverlayCompleteEvent) => {
-            // Clear previous overlay if exists (single shape mode)
+            const overlay = event.overlay;
+
+            // Special handling for MARKER (Sequential POI)
+            if (event.type === drawing.OverlayType.MARKER) {
+                // Do NOT clear previous overlay
+                // Do NOT reset drawing mode
+                updateArea(overlay, event.type);
+
+                // Add click listener to open InfoWindow
+                google.maps.event.addListener(overlay, 'click', () => {
+                    setSelectedMarker(overlay as google.maps.Marker);
+                });
+
+                // Add listener for dragend to update polyline?
+                // For simplicity, we might skip drag updates for the sequence path in this iteration,
+                // or we need to re-render the polyline on drag.
+                google.maps.event.addListener(overlay, 'dragend', () => {
+                    // Rebuild path from markers
+                    const seq = poiSequence.current;
+                    if (seq.polyline) {
+                        const newPath = seq.markers.map(m => m.getPosition()!);
+                        seq.polyline.setPath(newPath);
+                    }
+                    updateArea(overlay, event.type);
+                });
+
+
+
+                return;
+            }
+
+            // Clear previous overlay if exists (single shape mode for others)
             if (currentOverlay.current) {
                 // @ts-ignore
                 currentOverlay.current.setMap(null);
             }
 
-            const overlay = event.overlay;
             currentOverlay.current = overlay;
 
             // Reset to select mode
-            // NOTE: We don't reset activeTool here because it's controlled by parent.
-            // But we can reset drawing mode on map manager.
-            // Ideally parent should also reset activeTool to 'select' but for now we just stop drawing.
             drawingManager.setDrawingMode(null);
 
             updateArea(overlay, event.type);
 
             // Add listeners for edits
-            if (event.type === google.maps.drawing.OverlayType.POLYGON) {
+            if (event.type === drawing.OverlayType.POLYGON) {
                 const path = (overlay as google.maps.Polygon).getPath();
                 ['set_at', 'insert_at', 'remove_at'].forEach(evt => {
                     google.maps.event.addListener(path, evt, () => updateArea(overlay, event.type));
                 });
-            } else if (event.type === google.maps.drawing.OverlayType.RECTANGLE) {
+            } else if (event.type === drawing.OverlayType.RECTANGLE) {
                 google.maps.event.addListener(overlay, 'bounds_changed', () => updateArea(overlay, event.type));
+            } else if (event.type === drawing.OverlayType.CIRCLE) {
+                google.maps.event.addListener(overlay, 'radius_changed', () => updateArea(overlay, event.type));
+                google.maps.event.addListener(overlay, 'center_changed', () => updateArea(overlay, event.type));
             }
         });
 
@@ -199,7 +381,18 @@ const MapManager = ({ activeTool, onAreaChange }: { activeTool: string, onAreaCh
         };
     }, [drawingManager, onAreaChange]);
 
-    return null;
+    return (
+        <>
+            {selectedMarker && (
+                <POIInfoWindow
+                    marker={selectedMarker}
+                    onClose={() => setSelectedMarker(null)}
+                    onSave={handleSavePOI}
+                    onDelete={handleDeletePOI}
+                />
+            )}
+        </>
+    );
 };
 
 export const MapContainer: React.FC<MapContainerProps> = ({ activeTool, onAreaChange }) => {
@@ -234,7 +427,10 @@ export const MapContainer: React.FC<MapContainerProps> = ({ activeTool, onAreaCh
                     heading={0} // Reset heading
                     reuseMaps={true}
                 >
-                    <MapManager activeTool={activeTool} onAreaChange={handleAreaChange} />
+                    <MapManager
+                        activeTool={activeTool}
+                        onAreaChange={handleAreaChange}
+                    />
                 </Map>
             </APIProvider>
         </div>

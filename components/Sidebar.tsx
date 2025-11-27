@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Pentagon, Square, MapPin, MousePointer2, MousePointer, Upload } from 'lucide-react';
+import { Pentagon, Square, MapPin, MousePointer2, MousePointer, Upload, Circle } from 'lucide-react';
 
 interface SidebarProps {
     activeTool: string;
@@ -14,8 +14,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTool, onToolChange, onIm
         { id: 'polygon', icon: Pentagon, label: '多邊形' },
         { id: 'rectangle', icon: Square, label: '矩形' },
         { id: 'poi', icon: MapPin, label: '興趣點' },
-        { id: 'waypoint', icon: MousePointer2, label: '航點' },
-        { id: 'select', icon: MousePointer, label: '選取' },
+        { id: 'circle', icon: Circle, label: 'POI (圓形)' },
     ];
 
     const handleImportClick = () => {
@@ -67,10 +66,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTool, onToolChange, onIm
                     return (
                         <button
                             key={tool.id}
-                            onClick={() => onToolChange(tool.id)}
+                            onClick={() => onToolChange(isActive ? 'select' : tool.id)}
                             className={`w-full aspect-square flex flex-col items-center justify-center transition-all duration-200 group relative border ${isActive
-                                    ? 'bg-primary text-white border-primary shadow-md'
-                                    : 'bg-white text-secondary border-transparent hover:bg-paper hover:text-primary'
+                                ? 'bg-primary text-white border-primary shadow-md'
+                                : 'bg-white text-secondary border-transparent hover:bg-paper hover:text-primary'
                                 }`}
                         >
                             <Icon className={`w-6 h-6 ${isActive ? 'stroke-[2px]' : 'stroke-[1.5px]'}`} />

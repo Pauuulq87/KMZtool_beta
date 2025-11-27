@@ -20,12 +20,7 @@ export interface MissionSettings {
   splitMission: boolean;
 }
 
-export interface AIGenerationResponse {
-  altitude: number;
-  speed: number;
-  gimbalAngle: number;
-  explanation: string;
-}
+
 
 export enum MeasurementSystem {
   METRIC = 'Metric (Meters)',

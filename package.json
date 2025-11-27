@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.30.0",
     "@turf/turf": "^7.3.0",
     "@vis.gl/react-google-maps": "^1.7.1",
     "lucide-react": "^0.554.0",
