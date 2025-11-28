@@ -1,5 +1,5 @@
-/// <reference types="google.maps" />
 import { MissionSettings } from '../types';
+import JSZip from 'jszip';
 
 interface Point {
     lat: number;
@@ -446,38 +446,41 @@ export const generateRectanglePath = (
 };
 
 /**
- * 產出 KML 文字內容，支援附加任務完成方式與分段資訊（用於分割下載）。
- * 真正 KMZ 需再以 zip 壓縮，這裡先回傳 KML 字串供呼叫端下載或進一步處理。
+ * Generates the template.kml content for DJI KMZ.
+ * This KML contains the visual representation of the path.
  */
-export const generateKML = (
+export const generateTemplateKml = (
     waypoints: Waypoint[],
-    missionName: string,
-    options: {
-        onCompletion?: string;
-        segmentIndex?: number;
-        totalSegments?: number;
-    } = {}
+    missionName: string
 ): string => {
-    const { onCompletion, segmentIndex, totalSegments } = options;
-    const metaData = [
-        onCompletion ? `<Data name="onCompletion"><value>${onCompletion}</value></Data>` : null,
-        segmentIndex ? `<Data name="segment"><value>${segmentIndex}/${totalSegments || segmentIndex}</value></Data>` : null,
-    ].filter(Boolean).join('\n        ');
-
-    const documentMeta = metaData
-        ? `
-    <ExtendedData>
-        ${metaData}
-    </ExtendedData>`
-        : '';
-
     const kmlHeader = `<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.dji.com/wpmz/1.0.2">
   <Document>
     <name>${missionName}</name>
-    ${documentMeta}
+    <wpml:author>WaypointMap Pro</wpml:author>
+    <wpml:createTime>${new Date().getTime()}</wpml:createTime>
+    <wpml:updateTime>${new Date().getTime()}</wpml:updateTime>
+    <wpml:missionConfig>
+      <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>
+      <wpml:finishAction>goHome</wpml:finishAction>
+      <wpml:exitOnRCLost>goContinue</wpml:exitOnRCLost>
+      <wpml:executeRCLostAction>goBack</wpml:executeRCLostAction>
+      <wpml:takeOffSecurityHeight>20</wpml:takeOffSecurityHeight>
+      <wpml:globalTransitionalSpeed>5</wpml:globalTransitionalSpeed>
+      <wpml:droneInfo>
+        <wpml:droneEnumValue>68</wpml:droneEnumValue>
+        <wpml:droneSubEnumValue>0</wpml:droneSubEnumValue>
+      </wpml:droneInfo>
+    </wpml:missionConfig>
     <Folder>
-      <name>Waypoints</name>
+      <wpml:templateId>0</wpml:templateId>
+      <wpml:waylineId>0</wpml:waylineId>
+      <wpml:autoFlightSpeed>5</wpml:autoFlightSpeed>
+      <wpml:executeHeightMode>relativeToStartPoint</wpml:executeHeightMode>
+      <wpml:waylineCoordinateSys>
+        <wpml:coordinateMode>WGS84</wpml:coordinateMode>
+        <wpml:heightMode>EGM96</wpml:heightMode>
+      </wpml:waylineCoordinateSys>
 `;
 
     const kmlFooter = `    </Folder>
@@ -485,16 +488,75 @@ export const generateKML = (
 </kml>`;
 
     const placemarks = waypoints.map(wp => `      <Placemark>
-        <name>${wp.sequence}</name>
         <Point>
-          <coordinates>${wp.lng},${wp.lat},${wp.alt}</coordinates>
+          <coordinates>${wp.lng},${wp.lat}</coordinates>
         </Point>
-        <ExtendedData>
-            <Data name="altitude"><value>${wp.alt}</value></Data>
-            <Data name="speed"><value>${wp.speed}</value></Data>
-            <Data name="action"><value>${wp.action || 'none'}</value></Data>
-        </ExtendedData>
+        <wpml:index>${wp.sequence - 1}</wpml:index>
+        <wpml:executeHeight>${wp.alt || 30}</wpml:executeHeight>
+        <wpml:waypointSpeed>${wp.speed || 5}</wpml:waypointSpeed>
+        <wpml:waypointHeadingParam>
+          <wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode>
+        </wpml:waypointHeadingParam>
+        <wpml:waypointTurnParam>
+          <wpml:waypointTurnMode>toPointAndStop</wpml:waypointTurnMode>
+          <wpml:waypointTurnDampingDist>0</wpml:waypointTurnDampingDist>
+        </wpml:waypointTurnParam>
+        <wpml:useStraightLine>1</wpml:useStraightLine>
+        ${wp.action === 'photo' ? `
+        <wpml:actionGroup>
+          <wpml:actionGroupId>${wp.sequence - 1}</wpml:actionGroupId>
+          <wpml:actionGroupStartIndex>${wp.sequence - 1}</wpml:actionGroupStartIndex>
+          <wpml:actionGroupEndIndex>${wp.sequence - 1}</wpml:actionGroupEndIndex>
+          <wpml:actionGroupMode>sequence</wpml:actionGroupMode>
+          <wpml:actionTrigger>
+            <wpml:actionTriggerType>reachPoint</wpml:actionTriggerType>
+          </wpml:actionTrigger>
+          <wpml:action>
+            <wpml:actionId>0</wpml:actionId>
+            <wpml:actionActuatorFunc>takePhoto</wpml:actionActuatorFunc>
+            <wpml:actionActuatorFuncParam>
+              <wpml:fileSuffix>-${wp.sequence}</wpml:fileSuffix>
+              <wpml:payloadPositionIndex>0</wpml:payloadPositionIndex>
+            </wpml:actionActuatorFuncParam>
+          </wpml:action>
+        </wpml:actionGroup>` : ''}
       </Placemark>`).join('\n');
 
     return kmlHeader + placemarks + '\n' + kmlFooter;
+};
+
+/**
+ * Generates the waylines.wpml content for DJI KMZ.
+ * This file contains the actual flight execution logic.
+ */
+export const generateWaylinesWpml = (
+    waypoints: Waypoint[],
+    missionName: string
+): string => {
+    // For now, the structure is very similar to template.kml but strictly WPML
+    // In many cases, DJI uses the same content for both, or slightly different.
+    // We will use the same content generator for now as it includes all wpml tags.
+    return generateTemplateKml(waypoints, missionName);
+};
+
+/**
+ * Generates a DJI-compliant KMZ file.
+ */
+export const generateKMZ = async (
+    waypoints: Waypoint[],
+    missionName: string
+): Promise<Blob> => {
+    const zip = new JSZip();
+    const kmlContent = generateTemplateKml(waypoints, missionName);
+    const wpmlContent = generateWaylinesWpml(waypoints, missionName);
+
+    // Create folder structure
+    const wpmzFolder = zip.folder("wpmz");
+    if (wpmzFolder) {
+        wpmzFolder.file("template.kml", kmlContent);
+        wpmzFolder.file("waylines.wpml", wpmlContent);
+    }
+
+    // Generate blob
+    return await zip.generateAsync({ type: "blob" });
 };

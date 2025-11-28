@@ -989,6 +989,32 @@ const MapManager = ({ activeTool, onAreaChange, waypoints, initialArea, initialP
     );
 };
 
+
+const GeolocationHandler = () => {
+    const map = useMap();
+
+    useEffect(() => {
+        if (!map) return;
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const pos = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude,
+                    };
+                    map.setCenter(pos);
+                },
+                (error) => {
+                    console.log("Error getting location", error);
+                }
+            );
+        }
+    }, [map]);
+
+    return null;
+};
+
 export const MapContainer: React.FC<MapContainerProps> = ({ activeTool, onAreaChange, waypoints, initialArea, initialPOIs }) => {
     const [showInstruction, setShowInstruction] = useState(true);
 
@@ -1028,6 +1054,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({ activeTool, onAreaCh
                             initialArea={initialArea}
                             initialPOIs={initialPOIs}
                         />
+                        <GeolocationHandler />
                     </Map>
                 </MapControlProvider>
             </APIProvider>

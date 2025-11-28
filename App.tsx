@@ -8,7 +8,7 @@ import { AuthModal } from './components/AuthModal';
 import { MissionSettings } from './types';
 import { authService, User } from './services/authService';
 
-import { getAvailableSpacingMeters, generateCirclePath, generateRectanglePath, generateKML } from './utils/flightPathUtils';
+import { getAvailableSpacingMeters, generateCirclePath, generateRectanglePath, generateKMZ } from './utils/flightPathUtils';
 
 const App: React.FC = () => {
   // 工具：統一檔案下載流程
@@ -55,6 +55,7 @@ const App: React.FC = () => {
   const [loadedPOIs, setLoadedPOIs] = useState<any[]>([]);
   const [availableSpacingMeters, setAvailableSpacingMeters] = useState<number | null>(null);
   const [estimatedTimeText, setEstimatedTimeText] = useState<string>('—');
+  const [currentMissionId, setCurrentMissionId] = useState<string | null>(null);
 
   // Check auth on mount
   useEffect(() => {
@@ -243,11 +244,14 @@ const App: React.FC = () => {
     }
 
     const missionName = (customName || 'mission').trim();
-    const mimeType = 'application/vnd.google-earth.kml+xml';
-    const chunkSize = 200;
 
-    const kmlContent = generateKML(generatedWaypoints, missionName, { onCompletion: settings.onCompletion });
-    downloadBlob(new Blob([kmlContent], { type: mimeType }), `${missionName}.kml`);
+    try {
+      const blob = await generateKMZ(generatedWaypoints, missionName);
+      downloadBlob(blob, `${missionName}.kmz`);
+    } catch (error) {
+      console.error('Failed to generate KMZ:', error);
+      alert('產生 KMZ 失敗');
+    }
   };
 
   const handleLoginSuccess = (user: User) => {
