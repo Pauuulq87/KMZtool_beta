@@ -7,9 +7,10 @@ interface MapEditorProps {
   waypoints?: any[];
   initialArea?: any;
   initialPOIs?: any[];
+  t: any;
 }
 
-export const MapEditor: React.FC<MapEditorProps> = ({ activeTool, onAreaChange, waypoints, initialArea, initialPOIs }) => {
+export const MapEditor: React.FC<MapEditorProps> = ({ activeTool, onAreaChange, waypoints, initialArea, initialPOIs, t }) => {
   return (
     <MapContainer
       activeTool={activeTool}
@@ -17,6 +18,7 @@ export const MapEditor: React.FC<MapEditorProps> = ({ activeTool, onAreaChange, 
       waypoints={waypoints}
       initialArea={initialArea}
       initialPOIs={initialPOIs}
+      t={t}
     />
   );
 };

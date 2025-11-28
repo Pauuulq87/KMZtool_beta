@@ -9,6 +9,7 @@ import { MissionSettings } from './types';
 import { authService, User } from './services/authService';
 
 import { getAvailableSpacingMeters, generateCirclePath, generateRectanglePath, generateKMZ } from './utils/flightPathUtils';
+import { translations, getBrowserLanguage, Language } from './utils/i18n';
 
 const App: React.FC = () => {
   // 工具：統一檔案下載流程
@@ -56,6 +57,9 @@ const App: React.FC = () => {
   const [availableSpacingMeters, setAvailableSpacingMeters] = useState<number | null>(null);
   const [estimatedTimeText, setEstimatedTimeText] = useState<string>('—');
   const [currentMissionId, setCurrentMissionId] = useState<string | null>(null);
+  const [language, setLanguage] = useState<Language>(getBrowserLanguage());
+
+  const t = translations[language];
 
   // Check auth on mount
   useEffect(() => {
@@ -268,15 +272,19 @@ const App: React.FC = () => {
   return (
     <>
       <Navbar
-        user={user}
-        onLoginClick={() => setIsAuthModalOpen(true)}
-        onLogoutClick={handleLogout}
+        user={null}
+        onLoginClick={() => { }}
+        onLogoutClick={() => { }}
+        language={language}
+        onLanguageChange={setLanguage}
+        t={t}
       />
       <Layout
         sidebar={
           <Sidebar
             activeTool={activeTool}
             onToolChange={setActiveTool}
+            t={t}
           />
         }
         propertiesPanel={
@@ -287,6 +295,7 @@ const App: React.FC = () => {
             onDownload={handleDownloadKMZ}
             availableSpacingMeters={availableSpacingMeters}
             estimatedTimeText={estimatedTimeText}
+            t={t}
           />
         }
       >
@@ -296,14 +305,9 @@ const App: React.FC = () => {
           waypoints={generatedWaypoints}
           initialArea={loadedMissionArea}
           initialPOIs={loadedPOIs}
+          t={t}
         />
       </Layout>
-
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        onLoginSuccess={handleLoginSuccess}
-      />
     </>
   );
 };

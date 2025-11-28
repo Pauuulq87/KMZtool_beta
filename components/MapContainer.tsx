@@ -12,6 +12,7 @@ interface MapContainerProps {
     waypoints?: any[];
     initialArea?: any;
     initialPOIs?: any[];
+    t: any;
 }
 
 // Custom Control Components
@@ -95,7 +96,7 @@ const MapControlProvider = ({ children }: { children: React.ReactNode }) => {
     );
 };
 
-const TopBar = () => {
+const TopBar = ({ t }: { t: any }) => {
     const { undo, redo, reset } = React.useContext(MapControlContext);
 
     return (
@@ -106,19 +107,19 @@ const TopBar = () => {
                     onClick={undo}
                     className="bg-white px-3 py-1.5 rounded-md shadow-md text-sm font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1 active:bg-gray-100"
                 >
-                    <Undo className="w-4 h-4" /> Undo
+                    <Undo className="w-4 h-4" /> {t['undo']}
                 </button>
                 <button
                     onClick={redo}
                     className="bg-white px-3 py-1.5 rounded-md shadow-md text-sm font-medium text-gray-600 hover:bg-gray-50 flex items-center gap-1 active:bg-gray-100"
                 >
-                    <Redo className="w-4 h-4" /> Redo
+                    <Redo className="w-4 h-4" /> {t['redo']}
                 </button>
                 <button
                     onClick={reset}
                     className="bg-white px-3 py-1.5 rounded-md shadow-md text-sm font-medium text-red-500 hover:bg-red-50 flex items-center gap-1 active:bg-red-100"
                 >
-                    <RotateCcw className="w-4 h-4" /> Reset
+                    <RotateCcw className="w-4 h-4" /> {t['reset']}
                 </button>
             </div>
         </div>
@@ -636,7 +637,7 @@ const MapManager = ({ activeTool, onAreaChange, waypoints, initialArea, initialP
                 editable: true,
                 draggable: true,
             },
-            circleOptions: {
+            rectangleOptions: {
                 fillColor: '#ffff00',
                 fillOpacity: 0.3,
                 strokeWeight: 2,
@@ -1015,7 +1016,7 @@ const GeolocationHandler = () => {
     return null;
 };
 
-export const MapContainer: React.FC<MapContainerProps> = ({ activeTool, onAreaChange, waypoints, initialArea, initialPOIs }) => {
+export const MapContainer: React.FC<MapContainerProps> = ({ activeTool, onAreaChange, waypoints, initialArea, initialPOIs, t }) => {
     const [showInstruction, setShowInstruction] = useState(true);
 
     const handleAreaChange = useCallback((geoJson: any) => {
@@ -1031,7 +1032,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({ activeTool, onAreaCh
         <div className="relative w-full h-full">
             <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
                 <MapControlProvider>
-                    <TopBar />
+                    <TopBar t={t} />
                     <InstructionOverlay visible={showInstruction} onClose={() => setShowInstruction(false)} />
                     <Map
                         defaultCenter={{ lat: 25.0, lng: 121.5 }}
