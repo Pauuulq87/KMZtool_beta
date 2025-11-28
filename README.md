@@ -1,4 +1,4 @@
-# WaypointMap README（跨平台前端）
+# KMZtool_beta README（跨平台前端）
 
 本文件為「WaypointMap 類型任務編輯器」的前端開發說明，針對 Google Antigravity / 現代 Web 前端開發環境設計。目標是讓最終使用者能在 macOS 或 Windows 系統下，以瀏覽器完成任務規劃與檔案下載（KML / KMZ），不需安裝額外桌面程式。
 

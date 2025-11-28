@@ -1,5 +1,5 @@
 {
-  "name": "WaypointMap Pro",
+  "name": "KMZtool_beta",
   "description": "Next-generation drone waypoint mission planner with AI-assisted configuration.",
   "requestFramePermissions": [
     "geolocation"
