@@ -4,7 +4,17 @@ import { APIProvider, Map, useMap, useMapsLibrary, ControlPosition } from '@vis.
 import { Undo, Redo, RotateCcw, Upload, Search, Hexagon, Square, MapPin, MousePointer, Navigation } from 'lucide-react';
 import { POIInfoWindow, POIData } from './POIInfoWindow';
 
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+declare global {
+    interface Window {
+        APP_CONFIG?: {
+            googleMapsApiKey?: string;
+        };
+    }
+}
+
+// 優先從執行階段注入的 APP_CONFIG 讀取，避免在建置產物中硬編碼密鑰
+const GOOGLE_MAPS_API_KEY =
+    (typeof window !== 'undefined' && window.APP_CONFIG?.googleMapsApiKey) || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
 interface MapContainerProps {
     activeTool: string;
