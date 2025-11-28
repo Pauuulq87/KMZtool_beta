@@ -37,6 +37,10 @@ export const translations = {
         // Header
         'brand_name': '.KMZtool',
         'beta': 'beta',
+
+        // Instruction Overlay
+        'instruction_title': 'Start Drawing Area',
+        'instruction_body': 'Please use the polygon or rectangle tool on the left to draw.',
     },
     'zh-TW': {
         // Map Controls
@@ -74,6 +78,10 @@ export const translations = {
         // Header
         'brand_name': '.KMZtool',
         'beta': 'beta',
+
+        // Instruction Overlay
+        'instruction_title': '開始繪製區域',
+        'instruction_body': '請使用左側多邊形、矩形工具進行繪製',
     }
 };
 

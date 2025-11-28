@@ -126,23 +126,22 @@ const TopBar = ({ t }: { t: any }) => {
     );
 };
 
-const InstructionOverlay = ({ visible, onClose }: { visible: boolean; onClose: () => void }) => {
+const InstructionOverlay = ({ visible, onClose, t }: { visible: boolean; onClose: () => void, t: any }) => {
     if (!visible) return null;
     return (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-sm px-8 py-6 shadow-xl text-center z-10 border border-primary/10 max-w-md pointer-events-auto">
-            <div className="flex justify-end">
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-sm px-6 py-4 shadow-xl text-center z-10 border border-primary/10 max-w-sm w-auto pointer-events-auto rounded-lg">
+            <div className="flex justify-end -mr-2 -mt-2">
                 <button
                     onClick={onClose}
                     className="text-secondary hover:text-primary text-sm px-2 py-1"
-                    aria-label="關閉提示"
+                    aria-label="Close"
                 >
                     ×
                 </button>
             </div>
-            <h3 className="text-xl font-serif font-bold text-primary mb-2">開始繪製區域</h3>
-            <p className="text-base text-secondary">
-                請使用多邊形、矩形或興趣點工具。<br />
-                繪製完成後請點擊 <span className="font-bold text-primary">產生路徑</span>。
+            <h3 className="text-lg font-serif font-bold text-primary mb-2">{t['instruction_title']}</h3>
+            <p className="text-sm text-secondary">
+                {t['instruction_body']}
             </p>
         </div>
     );
@@ -1033,7 +1032,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({ activeTool, onAreaCh
             <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
                 <MapControlProvider>
                     <TopBar t={t} />
-                    <InstructionOverlay visible={showInstruction} onClose={() => setShowInstruction(false)} />
+                    <InstructionOverlay visible={showInstruction} onClose={() => setShowInstruction(false)} t={t} />
                     <Map
                         defaultCenter={{ lat: 25.0, lng: 121.5 }}
                         defaultZoom={14}

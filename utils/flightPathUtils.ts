@@ -498,7 +498,7 @@ export const generateTemplateKml = (
           <wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode>
         </wpml:waypointHeadingParam>
         <wpml:waypointTurnParam>
-          <wpml:waypointTurnMode>toPointAndStop</wpml:waypointTurnMode>
+          <wpml:waypointTurnMode>toPointAndStopWithDiscontinuityCurvature</wpml:waypointTurnMode>
           <wpml:waypointTurnDampingDist>0</wpml:waypointTurnDampingDist>
         </wpml:waypointTurnParam>
         <wpml:useStraightLine>1</wpml:useStraightLine>
