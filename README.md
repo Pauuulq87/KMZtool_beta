@@ -156,7 +156,7 @@ summary: { totalDistance, estimatedTime, batteryEstimate }
 
 ## 7. UI 設計與操作流程
 
-- /Users/paul1q87/Documents/CursorBeass/PJ/waypointmap-pro/user/references/UI
+- ./user/references/UI
 - https://test.waypointmap.com/Home/Editor
 先解析上面路徑中的圖片與網頁，作為UI優化的參考
 
