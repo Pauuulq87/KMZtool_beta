@@ -152,6 +152,7 @@ const InstructionOverlay = ({ visible, onClose }: { visible: boolean; onClose: (
 const MapManager = ({ activeTool, onAreaChange, waypoints, initialArea, initialPOIs }: { activeTool: string, onAreaChange?: (geoJson: any) => void, waypoints?: any[], initialArea?: any, initialPOIs?: any[] }) => {
     const map = useMap();
     const drawing = useMapsLibrary('drawing');
+    const geometry = useMapsLibrary('geometry');
     const [drawingManager, setDrawingManager] = useState<google.maps.drawing.DrawingManager | null>(null);
     const currentOverlay = useRef<any | null>(null);
     const { registerHandlers } = React.useContext(MapControlContext);
@@ -159,6 +160,12 @@ const MapManager = ({ activeTool, onAreaChange, waypoints, initialArea, initialP
     // POI State
     const poiSequence = useRef<{ markers: google.maps.Marker[], polyline: google.maps.Polyline | null }>({ markers: [], polyline: null });
     const [selectedMarker, setSelectedMarker] = useState<google.maps.Marker | null>(null);
+
+    // Track active tool for reset
+    const activeToolRef = useRef(activeTool);
+    useEffect(() => {
+        activeToolRef.current = activeTool;
+    }, [activeTool]);
 
     // History State
     const historyStack = useRef<any[]>([]); // Stack of actions/states
@@ -307,6 +314,28 @@ const MapManager = ({ activeTool, onAreaChange, waypoints, initialArea, initialP
 
             // Notify App
             if (onAreaChange) onAreaChange(null);
+
+            // Re-enable drawing mode immediately
+            if (drawingManager && drawing) {
+                let mode: google.maps.drawing.OverlayType | null = null;
+                switch (activeToolRef.current) {
+                    case 'polygon':
+                        mode = drawing.OverlayType.POLYGON;
+                        break;
+                    case 'rectangle':
+                        mode = drawing.OverlayType.RECTANGLE;
+                        break;
+                    case 'circle':
+                        mode = drawing.OverlayType.CIRCLE;
+                        break;
+                    case 'poi':
+                        mode = drawing.OverlayType.MARKER;
+                        break;
+                    default:
+                        mode = null;
+                }
+                drawingManager.setDrawingMode(mode);
+            }
         };
 
         registerHandlers({ undo: handleUndo, redo: handleRedo, reset: handleReset });
@@ -558,6 +587,9 @@ const MapManager = ({ activeTool, onAreaChange, waypoints, initialArea, initialP
 
         // Create Markers
         waypoints.forEach((wp, index) => {
+            // Validate coordinates
+            if (!Number.isFinite(wp.lat) || !Number.isFinite(wp.lng)) return;
+
             const marker = new google.maps.Marker({
                 position: { lat: wp.lat, lng: wp.lng },
                 map: map,
@@ -567,7 +599,15 @@ const MapManager = ({ activeTool, onAreaChange, waypoints, initialArea, initialP
                     fontSize: '12px',
                     fontWeight: 'bold'
                 },
-                icon: {
+                icon: (wp.heading !== undefined && Number.isFinite(wp.heading)) ? {
+                    path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+                    scale: 4,
+                    fillColor: '#0000FF',
+                    fillOpacity: 1,
+                    strokeColor: 'white',
+                    strokeWeight: 1,
+                    rotation: wp.heading
+                } : {
                     path: google.maps.SymbolPath.CIRCLE,
                     scale: 10,
                     fillColor: '#0000FF',
@@ -845,6 +885,22 @@ const MapManager = ({ activeTool, onAreaChange, waypoints, initialArea, initialP
 
             // Special handling for MARKER (Sequential POI)
             if (event.type === drawing.OverlayType.MARKER) {
+                const marker = overlay as google.maps.Marker;
+                const currentSeq = poiSequence.current;
+
+                // Prevent duplicates (check distance to last marker)
+                if (currentSeq.markers.length > 0 && geometry) {
+                    const lastMarker = currentSeq.markers[currentSeq.markers.length - 1];
+                    const dist = geometry.spherical.computeDistanceBetween(
+                        marker.getPosition()!,
+                        lastMarker.getPosition()!
+                    );
+                    if (dist < 0.5) { // Less than 0.5 meters
+                        marker.setMap(null);
+                        return;
+                    }
+                }
+
                 const geoJson = updateArea(overlay, event.type);
 
                 // Add to History
@@ -939,8 +995,6 @@ export const MapContainer: React.FC<MapContainerProps> = ({ activeTool, onAreaCh
     const handleAreaChange = useCallback((geoJson: any) => {
         if (geoJson) {
             setShowInstruction(false);
-        } else {
-            setShowInstruction(true);
         }
         if (onAreaChange) {
             onAreaChange(geoJson);
