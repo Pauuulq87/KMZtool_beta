@@ -4,7 +4,7 @@
 KMZtool_beta 是瀏覽器端的航線／航點任務編輯器，協助無人機（我手上的是DJI AIR 3、使用RC-N3）任務規劃自動化並快速輸出 KML/KMZ。目標是讓操作者在 macOS 或 Windows 上，以圖形介面完成區域繪製、航點生成與檔案下載。典型使用者包含航拍任務規劃者、測繪巡檢團隊，以及需要批次生成航線的開發者。
 
 注意！這是一個 beta 版本，KMZ檔案匯入DJI Fly後，航線還無法克服曲線航點的限制，請見下圖：
-![畫面示意](/Users/paul1q87/Documents/CursorBeass/PJ/KMZtool_beta/38D108D1-2B22-46A9-A935-8909F55DA742_1_105_c.jpeg)
+<img src="./assets/demo.jpeg" width="400" />
 
 
 
@@ -15,8 +15,7 @@ KMZtool_beta 是瀏覽器端的航線／航點任務編輯器，協助無人機�
 - React + Vite：快速開發體驗，TypeScript 型別安全；航點演算法集中於工具模組。
 - 可選後端：Node.js + Express + Prisma 提供任務 CRUD 與驗證，方便擴充。
 
-
-<iframe width="1902" height="879" src="https://www.youtube.com/embed/3sOjrJNmBuQ" title="KMZtool beta demo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+https://www.youtube.com/watch?v=3sOjrJNmBuQ
 
 
 ---以下使用AI生成的專案指引---
