@@ -1,15 +1,25 @@
 # KMZtool_beta：AI 輔助的航線任務規劃器
 
 ## 專案簡介
-KMZtool_beta 是瀏覽器端的航線／航點任務編輯器，協助無人機任務規劃自動化並快速輸出 KML/KMZ。目標是讓操作者在 macOS 或 Windows 上，以圖形介面完成區域繪製、航點生成與檔案下載。典型使用者包含航拍任務規劃者、測繪巡檢團隊，以及需要批次生成航線的開發者。
+KMZtool_beta 是瀏覽器端的航線／航點任務編輯器，協助無人機（我手上的是DJI AIR 3、使用RC-N3）任務規劃自動化並快速輸出 KML/KMZ。目標是讓操作者在 macOS 或 Windows 上，以圖形介面完成區域繪製、航點生成與檔案下載。典型使用者包含航拍任務規劃者、測繪巡檢團隊，以及需要批次生成航線的開發者。
+
+注意！這是一個 beta 版本，KMZ檔案匯入DJI Fly後，航線還無法克服曲線航點的限制，請見下圖：
+![畫面示意](/Users/paul1q87/Documents/CursorBeass/PJ/KMZtool_beta/38D108D1-2B22-46A9-A935-8909F55DA742_1_105_c.jpeg)
+
+
 
 ## 特色
-- 圖形化任務編輯：支援多邊形、矩形、圓形繪製，並顯示衛星/街道底圖。
-- 參數化航線生成：自訂間距、重疊率、方向角、高度、速度，立即更新航點。
+- 圖形化任務編輯：支援多邊形、矩形並顯示衛星底圖。
 - KML/KMZ 匯出：內建 KML 模板與 KMZ 打包流程，可直接下載。
-- Google Maps 整合：使用 Google Maps JS API 呈現地圖與 POI，支援雙語介面。
+- Google Maps 整合：使用 Google Maps JS API 呈現地圖，支援雙語介面。
 - React + Vite：快速開發體驗，TypeScript 型別安全；航點演算法集中於工具模組。
 - 可選後端：Node.js + Express + Prisma 提供任務 CRUD 與驗證，方便擴充。
+
+
+<iframe width="1902" height="879" src="https://www.youtube.com/embed/3sOjrJNmBuQ" title="KMZtool beta demo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+
+---以下使用AI生成的專案指引---
 
 ## 安裝
 - 系統需求：Node.js 18+、npm 9+；若啟用後端需可用資料庫（Prisma 支援任一）。
@@ -30,34 +40,7 @@ npm install
 ```bash
 npm run dev
 ```
-- 最小使用示例（生成矩形掃描航線並輸出航點）
-```ts
-import { generateRectanglePath } from './utils/flightPathUtils';
 
-const bounds = { north: 25.05, south: 25.0, east: 121.55, west: 121.5 };
-const waypoints = generateRectanglePath(bounds, {
-  altitude: 60,
-  speed: 5,
-  gimbalAngle: -90,
-  pathDistance: 20,
-  orientation: '南北向',
-  overlap: 80,
-  rotationAngle: 0,
-  useActions: false,
-  reversePoints: false,
-  straightenPaths: true,
-  correction: true,
-  units: 'metric',
-  interval: 2,
-  actionType: 'none',
-  maintainAltitude: false,
-  generateEveryPoint: false,
-  onCompletion: 'hover',
-  splitMission: false,
-});
-
-console.log(waypoints);
-```
 
 ## 使用說明 / API 概觀
 - 前端核心模組
